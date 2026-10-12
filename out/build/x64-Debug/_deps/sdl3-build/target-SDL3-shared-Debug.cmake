@@ -1,0 +1,3 @@
+set_property(TARGET "SDL3::SDL3-shared"
+  PROPERTY IMPORTED_CXX_MODULES_DEBUG
+)

@@ -1,0 +1,8 @@
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/CMakeFiles/cpu_renderer_sdl.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/SDL3-shared.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/SDL3_test.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/SDL_uclibc.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/edit_cache.dir
+C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/rebuild_cache.dir

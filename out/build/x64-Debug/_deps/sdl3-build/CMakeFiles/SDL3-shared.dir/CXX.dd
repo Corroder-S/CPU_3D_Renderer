@@ -1,0 +1,11 @@
+ninja_dyndep_version = 1.0
+build _deps\sdl3-build\CMakeFiles\SDL3-shared.dir\src\core\windows\SDL_gameinput.cpp.obj: dyndep
+
+build _deps\sdl3-build\CMakeFiles\SDL3-shared.dir\src\core\windows\pch_cpp.cpp.obj: dyndep
+
+build _deps\sdl3-build\CMakeFiles\SDL3-shared.dir\src\core\windows\gameinput\gameinput.cpp.obj: dyndep
+
+build _deps\sdl3-build\CMakeFiles\SDL3-shared.dir\src\video\windows\SDL_windowsgameinput.cpp.obj: dyndep
+
+build _deps\sdl3-build\CMakeFiles\SDL3-shared.dir\src\joystick\gdk\SDL_gameinputjoystick.cpp.obj: dyndep
+

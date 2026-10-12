@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "_deps\\sdl3-build\\CMakeFiles\\SDL3-shared.dir\\src\\core\\windows\\pch_cpp.cpp.obj",
+            "outputs": [
+                "C:\\Users\\sbrossard\\Documents\\GitHub\\CPU_Renderer_SDL\\out\\build\\x64-Debug\\vc140.pdb",
+                "_deps\\sdl3-build\\CMakeFiles\\SDL3-shared.dir\\src\\core\\windows\\pch_cpp.cpp.obj.ddi",
+                "C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-build/CMakeFiles/SDL3-shared.dir/./cmake_pch.cxx.pch"
+            ],
+            "requires": []
+        }
+    ]
+}
