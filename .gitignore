@@ -1,0 +1,62 @@
+# ==========================================
+# C++ & Output Build Directories
+# ==========================================
+build/
+bin/
+lib/
+out/
+*.o
+*.obj
+*.exe
+*.elf
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.pdb
+*.ilk
+
+# ==========================================
+# CMake
+# ==========================================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+Testing/
+Makefile
+compile_commands.json
+
+# ==========================================
+# Visual Studio
+# ==========================================
+.vs/
+*.user
+*.userosv
+*.suo
+*.sln.docstates
+x64/
+x86/
+Debug/
+Release/
+[Bb]uild/
+
+# ==========================================
+# CLion / JetBrains IDEs
+# ==========================================
+.idea/
+cmake-build-*/
+
+# ==========================================
+# VS Code
+# ==========================================
+.vscode/
+
+# ==========================================
+# OS & System Files
+# ==========================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.log

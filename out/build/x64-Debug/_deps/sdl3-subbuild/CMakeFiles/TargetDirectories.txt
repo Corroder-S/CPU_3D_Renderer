@@ -1,3 +1,0 @@
-C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-subbuild/CMakeFiles/sdl3-populate.dir
-C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-subbuild/CMakeFiles/edit_cache.dir
-C:/Users/sbrossard/Documents/GitHub/CPU_Renderer_SDL/out/build/x64-Debug/_deps/sdl3-subbuild/CMakeFiles/rebuild_cache.dir
