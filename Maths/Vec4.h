@@ -41,6 +41,7 @@ namespace Maths
 
         T MagnitudeSquared() const;
         T Magnitude() const;
+        Vec3<T> xyz() const;
 
         static const Vec4 Zero;
         static const Vec4 One;
@@ -147,6 +148,9 @@ namespace Maths
 
     template <std::floating_point T>
     T Vec4<T>::Magnitude() const { return std::hypot(std::hypot(x, y), std::hypot(z, w)); }
+
+    template <std::floating_point T>
+    Vec3<T> Vec4<T>::xyz() const { return {x, y, z}; }
 
     // --- Static constants ---
 
