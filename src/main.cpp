@@ -31,6 +31,63 @@ void draw_line(std::vector<uint32_t>& framebuffer, int x0, int x1, int y0, int y
     }
 }
 
+static Maths::Matrix4x4<> Perspective(float FOV, float aspect, float near, float far)
+{
+    Maths::Matrix4x4<> result;
+    result = result.Zero();
+    float yscale = 1 / (tan(FOV / 2));
+    float xscale = yscale / aspect;
+    float A = (far + near) / (near - far);
+    float B = (2 * far * near) / (near - far);
+
+    result.values[0][0] = xscale;
+    result.values[1][1] = yscale;
+    result.values[2][2] = A;
+    result.values[2][3] = B;
+    result.values[3][2] = -1;
+
+    return result;
+}
+
+static Maths::Matrix4x4<> LookAt(const Maths::Vec3<>& eye, const Maths::Vec3<>& target, const Maths::Vec3<>& up)
+{   
+    Maths::Vec3<> forward = Maths::Normalize(eye - target);
+    Maths::Vec3<> right = Maths::Normalize(Maths::Cross(up, forward));
+    Maths::Vec3<> camUp = Maths::Cross(forward, right);
+
+    Maths::Matrix4x4<> result;
+    result = result.Identity();
+
+    result.values[0][0] = right.x;
+    result.values[0][1] = right.y;
+    result.values[0][2] = right.z;
+    result.values[0][3] = -Maths::Dot(right, eye);
+    result.values[1][0] = camUp.x; 
+    result.values[1][1] = camUp.y;
+    result.values[1][2] = camUp.z;  
+    result.values[1][3] = -Maths::Dot(camUp, eye);
+    result.values[2][0] = forward.x;
+    result.values[2][1] = forward.y;
+    result.values[2][2] = forward.z;
+    result.values[2][3] = -Maths::Dot(forward, eye);
+
+    return result;
+}
+
+bool project_vertex(const Maths::Vec3<float>& vertex,const Maths::Matrix4x4<float>& mvp,int width, int height, Maths::Vec3<float>& out_pixel)
+{
+    Maths::Vec4<float> clip = mvp * Maths::Vec4<float>(vertex, 1.0f);
+    if (clip.w <= 0.001f) return false;
+
+    Maths::Vec3<float> ndc(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+
+    out_pixel.x = (ndc.x + 1.0f) * 0.5f * static_cast<float>(width);
+    out_pixel.y = (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(height);
+    out_pixel.z = ndc.z;
+
+    return true;
+}
+
 uint32_t convert_color(uint8_t red, uint8_t green, uint8_t blue) {
     uint32_t color = ((uint32_t)0xFFu << 24) | (red << 16) | (green << 8) | (blue);
     return color;
@@ -149,6 +206,16 @@ int main(int argc, char* argv[]) {
     Maths::Vec3<> v2_base = Maths::Vec3<>(200, 800, 0);
 
 
+    const std::vector<Maths::Vec3<float>> cube_vertices = {
+    {-1, -1, -1}, { 1, -1, -1}, { 1,  1, -1}, {-1,  1, -1},
+    {-1, -1,  1}, { 1, -1,  1}, { 1,  1,  1}, {-1,  1,  1}};
+
+    const std::vector<std::pair<int, int>> cube_edges = {
+        {0,1}, {1,2}, {2,3}, {3,0},
+        {4,5}, {5,6}, {6,7}, {7,4},
+        {0,4}, {1,5}, {2,6}, {3,7}
+    };
+
     Maths::Vec3<> TriangleCenter(
         (v0_base.x + v1_base.x + v2_base.x) / 3.0f,
         (v0_base.y + v1_base.y + v2_base.y) / 3.0f,
@@ -181,7 +248,7 @@ int main(int argc, char* argv[]) {
             }
        }*/
 
-        draw_triangle(
+        /*draw_triangle(
             framebuffer,
             v0, v1, v2,
             0xFFFF0000,  // rouge
@@ -191,12 +258,40 @@ int main(int argc, char* argv[]) {
 
 
 
-        Maths::Matrix4x4<> M = Maths::Matrix4x4<>::Translation(TriangleCenter) * Maths::Matrix4x4<float>::RotationZ(t) * Maths::Matrix4x4<>::Scale(Maths::Vec3<>(1.0f + 0.3f * sin(t), 1.0f + 0.3f * sin(t), 1.0f + 0.3f * sin(t))) * Maths::Matrix4x4<>::Translation(-TriangleCenter);
+        
 
         v0 = M.TransformPoint(v0_base);
         v1 = M.TransformPoint(v1_base);
-        v2 = M.TransformPoint(v2_base);
+        v2 = M.TransformPoint(v2_base);*/
 
+        Maths::Matrix4x4<float> model = Maths::Matrix4x4<float>::RotationY(t) * Maths::Matrix4x4<float>::RotationX(t * 0.5f);
+        Maths::Matrix4x4<float> view = LookAt({ 0.0f, 0.0f, 3.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
+        Maths::Matrix4x4<float> proj = Perspective(1.0472f, static_cast<float>(RENDER_WIDTH) / RENDER_HEIGHT, 0.1f, 100.0f);
+
+        Maths::Matrix4x4<float> mvp = proj * view * model;
+
+        std::vector<Maths::Vec3<float>> projected_pixels(cube_vertices.size());
+        std::vector<bool> valid_vertices(cube_vertices.size());
+
+        for (size_t i = 0; i < cube_vertices.size(); ++i) {
+            valid_vertices[i] = project_vertex(cube_vertices[i], mvp, RENDER_WIDTH, RENDER_HEIGHT, projected_pixels[i]);
+        }
+
+        for (const auto& edge : cube_edges) {
+            int i0 = edge.first;
+            int i1 = edge.second;
+
+            if (valid_vertices[i0] && valid_vertices[i1]) {
+                draw_line(
+                    framebuffer,
+                    static_cast<int>(projected_pixels[i0].x),
+                    static_cast<int>(projected_pixels[i1].x),
+                    static_cast<int>(projected_pixels[i0].y),
+                    static_cast<int>(projected_pixels[i1].y),
+                    0xFFFFFFFF
+                );
+            }
+        }
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));
         SDL_RenderClear(renderer);
