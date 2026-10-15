@@ -40,6 +40,8 @@ namespace Maths
         static Matrix4x4 RotationY(T radians);
         static Matrix4x4 RotationZ(T radians);
         static Matrix4x4 Translation(const Vec3<T>& offset);
+        Vec3<T> TransformPoint(const Vec3<T>& point) const;
+        Vec3<T> TransformDirection(const Vec3<T>& direction) const;
     };
 
     template <std::floating_point T>
@@ -360,6 +362,20 @@ namespace Maths
         result.values[1][3] = offset.y;
         result.values[2][3] = offset.z;
         return result;
+    }
+
+    template <std::floating_point T>
+    Vec3<T> Matrix4x4<T>::TransformPoint(const Vec3<T>& point) const
+    {
+        const Vec4<T> result = *this * Vec4<T>(point, T{1});
+        return Vec3<T>(result);
+    }
+
+    template <std::floating_point T>
+    Vec3<T> Matrix4x4<T>::TransformDirection(const Vec3<T>& direction) const
+    {
+        const Vec4<T> result = *this * Vec4<T>(direction, T{0});
+        return Vec3<T>(result);
     }
 
     template <std::floating_point T>
