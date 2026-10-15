@@ -11,7 +11,7 @@ namespace Maths
 {
     // Row-major storage, column vectors: result = matrix * vector.
     // A * B applies B first. Angles are radians, right-handed rotations.
-    template <std::floating_point T = float>
+    template <typename T = float>
     class Matrix4x4
     {
     public:
@@ -44,7 +44,7 @@ namespace Maths
         Vec3<T> TransformDirection(const Vec3<T>& direction) const;
     };
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T>::Matrix4x4() : values{}
     {
         for (std::size_t i = 0; i < 4; ++i)
@@ -53,7 +53,7 @@ namespace Maths
         }
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T>::Matrix4x4(const std::array<T, 16>& elements) : values{}
     {
         for (std::size_t row = 0; row < 4; ++row)
@@ -65,33 +65,33 @@ namespace Maths
         }
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Identity()
     {
         return Matrix4x4();
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Zero()
     {
         return Matrix4x4(std::array<T, 16>{});
     }
 
-    template <std::floating_point T>
+    template <typename T>
     T& Matrix4x4<T>::operator()(std::size_t row, std::size_t column)
     {
         assert(row < 4 && column < 4 && "Matrix index is out of range");
         return values[row][column];
     }
 
-    template <std::floating_point T>
+    template <typename T>
     const T& Matrix4x4<T>::operator()(std::size_t row, std::size_t column) const
     {
         assert(row < 4 && column < 4 && "Matrix index is out of range");
         return values[row][column];
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::operator+(const Matrix4x4& rhs) const
     {
         Matrix4x4 result = Zero();
@@ -105,7 +105,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::operator-(const Matrix4x4& rhs) const
     {
         Matrix4x4 result = Zero();
@@ -119,7 +119,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::operator*(const Matrix4x4& rhs) const
     {
         Matrix4x4 result = Zero();
@@ -136,7 +136,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Matrix4x4<T>::operator*(const Vec4<T>& rhs) const
     {
         return {
@@ -147,7 +147,7 @@ namespace Maths
         };
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::operator*(T scalar) const
     {
         Matrix4x4 result = Zero();
@@ -161,14 +161,14 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T>& Matrix4x4<T>::operator*=(const Matrix4x4& rhs)
     {
         *this = *this * rhs;
         return *this;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Matrix4x4<T>::operator==(const Matrix4x4& rhs) const
     {
         for (std::size_t row = 0; row < 4; ++row)
@@ -184,13 +184,13 @@ namespace Maths
         return true;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Matrix4x4<T>::operator!=(const Matrix4x4& rhs) const
     {
         return !(*this == rhs);
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Transpose() const
     {
         Matrix4x4 result = Zero();
@@ -204,7 +204,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     T Matrix4x4<T>::Determinant() const
     {
         Matrix4x4 working = *this;
@@ -245,7 +245,7 @@ namespace Maths
         return determinant;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Inverse(T relativeTolerance) const
     {
         assert(std::isfinite(relativeTolerance) && relativeTolerance >= T{0} && relativeTolerance < T{1} && "Inverse tolerance must be finite and in [0, 1)");
@@ -305,7 +305,7 @@ namespace Maths
         return right;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Scale(const Vec3<T>& scale)
     {
         Matrix4x4 result;
@@ -315,7 +315,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::RotationX(T radians)
     {
         Matrix4x4 result;
@@ -328,7 +328,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::RotationY(T radians)
     {
         Matrix4x4 result;
@@ -341,7 +341,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::RotationZ(T radians)
     {
         Matrix4x4 result;
@@ -354,7 +354,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Translation(const Vec3<T>& offset)
     {
         Matrix4x4 result;
@@ -364,14 +364,14 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec3<T> Matrix4x4<T>::TransformPoint(const Vec3<T>& point) const
     {
         const Vec4<T> result = *this * Vec4<T>(point, T{1});
         return Vec3<T>(result);
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec3<T> Matrix4x4<T>::TransformDirection(const Vec3<T>& direction) const
     {
         const Vec4<T> result = *this * Vec4<T>(direction, T{0});

@@ -10,7 +10,7 @@ namespace Maths
 {
     // Row-major storage, column vectors: result = matrix * vector.
     // A * B applies B first. Angles are radians, right-handed rotations.
-    template <std::floating_point T = float>
+    template <typename T = float>
     class Matrix3x3
     {
     public:
@@ -40,7 +40,7 @@ namespace Maths
         static Matrix3x3 RotationZ(T radians);
     };
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T>::Matrix3x3() : values{}
     {
         for (std::size_t i = 0; i < 3; ++i)
@@ -49,7 +49,7 @@ namespace Maths
         }
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T>::Matrix3x3(const std::array<T, 9>& elements) : values{}
     {
         for (std::size_t row = 0; row < 3; ++row)
@@ -61,33 +61,33 @@ namespace Maths
         }
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Identity()
     {
         return Matrix3x3();
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Zero()
     {
         return Matrix3x3(std::array<T, 9>{});
     }
 
-    template <std::floating_point T>
+    template <typename T>
     T& Matrix3x3<T>::operator()(std::size_t row, std::size_t column)
     {
         assert(row < 3 && column < 3 && "Matrix index is out of range");
         return values[row][column];
     }
 
-    template <std::floating_point T>
+    template <typename T>
     const T& Matrix3x3<T>::operator()(std::size_t row, std::size_t column) const
     {
         assert(row < 3 && column < 3 && "Matrix index is out of range");
         return values[row][column];
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::operator+(const Matrix3x3& rhs) const
     {
         Matrix3x3 result = Zero();
@@ -101,7 +101,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::operator-(const Matrix3x3& rhs) const
     {
         Matrix3x3 result = Zero();
@@ -115,7 +115,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::operator*(const Matrix3x3& rhs) const
     {
         Matrix3x3 result = Zero();
@@ -132,7 +132,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec3<T> Matrix3x3<T>::operator*(const Vec3<T>& rhs) const
     {
         return {
@@ -142,7 +142,7 @@ namespace Maths
         };
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::operator*(T scalar) const
     {
         Matrix3x3 result = Zero();
@@ -156,14 +156,14 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T>& Matrix3x3<T>::operator*=(const Matrix3x3& rhs)
     {
         *this = *this * rhs;
         return *this;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Matrix3x3<T>::operator==(const Matrix3x3& rhs) const
     {
         for (std::size_t row = 0; row < 3; ++row)
@@ -179,13 +179,13 @@ namespace Maths
         return true;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Matrix3x3<T>::operator!=(const Matrix3x3& rhs) const
     {
         return !(*this == rhs);
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Transpose() const
     {
         Matrix3x3 result = Zero();
@@ -199,7 +199,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     T Matrix3x3<T>::Determinant() const
     {
         Matrix3x3 working = *this;
@@ -240,7 +240,7 @@ namespace Maths
         return determinant;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Inverse(T relativeTolerance) const
     {
         assert(std::isfinite(relativeTolerance) && relativeTolerance >= T{0} && relativeTolerance < T{1} && "Inverse tolerance must be finite and in [0, 1)");
@@ -300,7 +300,7 @@ namespace Maths
         return right;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Scale(const Vec3<T>& scale)
     {
         Matrix3x3 result;
@@ -310,7 +310,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::RotationX(T radians)
     {
         Matrix3x3 result;
@@ -323,7 +323,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::RotationY(T radians)
     {
         Matrix3x3 result;
@@ -336,7 +336,7 @@ namespace Maths
         return result;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Matrix3x3<T> Matrix3x3<T>::RotationZ(T radians)
     {
         Matrix3x3 result;

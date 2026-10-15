@@ -14,7 +14,9 @@ FetchContent_MakeAvailable(SDL3)
 
 add_subdirectory(Maths)
 
-add_executable(cpu_renderer_sdl src/main.cpp)
+add_executable(cpu_renderer_sdl src/main.cpp
+        src/Parsing/ObjLoader.cpp
+        src/Parsing/ObjLoader.hpp)
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 
