@@ -3,27 +3,11 @@
 #include <vector>
 #include <iostream>
 
+#include "Maths/Vec3.h"
 #include "Renderer/Framebuffer.h"
 #include "Renderer/Draw.h"
 #include "Renderer/Pipeline.h"
-
-
-Maths::Vec3<> cubeVertices[8] = {
-    { -0.5f, -0.5f, -0.5f },  // 0 back  bottom left
-    {  0.5f, -0.5f, -0.5f },  // 1 back  bottom right
-    {  0.5f,  0.5f, -0.5f },  // 2 back  top    right
-    { -0.5f,  0.5f, -0.5f },  // 3 back  top    left
-    { -0.5f, -0.5f,  0.5f },  // 4 front bottom left
-    {  0.5f, -0.5f,  0.5f },  // 5 front bottom right
-    {  0.5f,  0.5f,  0.5f },  // 6 front top    right
-    { -0.5f,  0.5f,  0.5f },  // 7 front top    left
-};
-
-int cubeEdges[12][2] = {
-    {0,1}, {1,2}, {2,3}, {3,0},  // back face
-    {4,5}, {5,6}, {6,7}, {7,4},  // front face
-    {0,4}, {1,5}, {2,6}, {3,7},  // connections
-};
+#include "Parsing/ObjLoader.h"
 
 
 int main(int argc, char* argv[])
@@ -64,6 +48,13 @@ int main(int argc, char* argv[])
     bool isRunning = true;
     SDL_Event event;
 
+    std::vector<Maths::Vec3f> vertices;
+    std::vector<Maths::Vec3i> faces;
+    LoadObj(ASSETS_PATH "spot.obj", vertices, faces);
+
+    std::cout << "vertices: " << vertices.size() << std::endl;
+    std::cout << "faces: "    << faces.size()    << std::endl;
+
     while (isRunning)
     {
         while (SDL_PollEvent(&event))
@@ -76,9 +67,10 @@ int main(int argc, char* argv[])
 
         float t = SDL_GetTicks() / 1000.0f;
 
+
         Maths::Matrix4x4<> model = Maths::Model(
             Maths::Vec3<>(0.0f, 0.0f, 0.0f),
-            Maths::Vec3<>(0.0f, t,    0.0f),
+            Maths::Vec3<>(3.14f, t,    0.0f),
             Maths::Vec3<>(1.0f, 1.0f, 1.0f)
         );
         Maths::Matrix4x4<> view = Maths::LookAt(
@@ -93,15 +85,26 @@ int main(int argc, char* argv[])
             100.0f
         );
 
+
+
         Maths::Matrix4x4<> MVP = proj * view * model;
 
-        Maths::Vec2i projected[8];
-        projectMesh(MVP, cubeVertices, 8, projected);
+        std::vector<Maths::Vec2i> projected(vertices.size());
+        projectMesh(MVP, vertices.data(), vertices.size(), projected.data());
 
-        for (auto& e : cubeEdges)
-            drawline(projected[e[0]].x, projected[e[0]].y,
-                     projected[e[1]].x, projected[e[1]].y,
+        for (auto& f : faces)
+        {
+            drawline(projected[f.x].x, projected[f.x].y,
+                     projected[f.y].x, projected[f.y].y,
                      rgb(255, 255, 255), framebuffer);
+            drawline(projected[f.y].x, projected[f.y].y,
+                     projected[f.z].x, projected[f.z].y,
+                     rgb(255, 255, 255), framebuffer);
+            drawline(projected[f.z].x, projected[f.z].y,
+                     projected[f.x].x, projected[f.x].y,
+                     rgb(255, 255, 255), framebuffer);
+        }
+
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));
         SDL_RenderClear(renderer);
