@@ -9,11 +9,6 @@
 constexpr int RENDER_WIDTH = 1280;
 constexpr int RENDER_HEIGHT = 800;
 
-struct Vec2 {
-    int x;
-    int y;
-};
-
 void put_pixel(std::vector<uint32_t>& framebuffer, int x, int y, uint32_t color)
 {
     if (x < 0 || x >= RENDER_WIDTH || y < 0 || y >= RENDER_HEIGHT) return;
@@ -63,11 +58,11 @@ uint32_t shade(
     return (0xFFu << 24) | (r << 16) | (g << 8) | b;
 }
 
-int edge(Vec2 va, Vec2 vb, Vec2 vc) {
+int edge(Maths::Vec3<> va, Maths::Vec3<> vb, Maths::Vec3<> vc) {
     return (vb.x - va.x) * (vc.y - va.y) - (vb.y - va.y) * (vc.x - va.x);
 }
 
-void draw_triangle(std::vector<uint32_t>& framebuffer, Vec2 v0, Vec2 v1, Vec2 v2, uint32_t c0, uint32_t c1, uint32_t c2)
+void draw_triangle(std::vector<uint32_t>& framebuffer, Maths::Vec3<> v0, Maths::Vec3<> v1, Maths::Vec3<> v2, uint32_t c0, uint32_t c1, uint32_t c2)
 {
     int area = edge(v0, v1, v2);
     if (area == 0) return;
@@ -84,9 +79,9 @@ void draw_triangle(std::vector<uint32_t>& framebuffer, Vec2 v0, Vec2 v1, Vec2 v2
 
     for (int py = miny; py < maxy; ++py){
         for (int px = minx; px < maxx; ++px) {
-            int w0 = edge(v1, v2, Vec2(px, py));
-            int w1 = edge(v2, v0, Vec2(px, py));
-            int w2 = edge(v0, v1, Vec2(px, py));
+            int w0 = edge(v1, v2, Maths::Vec3<>(float(px), float(py), 0));
+            int w1 = edge(v2, v0, Maths::Vec3<>(float(px), float(py), 0));
+            int w2 = edge(v0, v1, Maths::Vec3<>(float(px), float(py), 0));
             if (w0 > 0 && w1 > 0 && w2 > 0) {
                 uint32_t color = shade(w0, w1, w2, w0 + w1 + w2, c0, c1, c2);
                 put_pixel(framebuffer, px, py, color);
@@ -94,6 +89,12 @@ void draw_triangle(std::vector<uint32_t>& framebuffer, Vec2 v0, Vec2 v1, Vec2 v2
         }
     }
 
+}
+
+
+Maths::Vec3<> rotate_vec(Maths::Vec3<>& v, float angle)
+{
+    return Maths::Matrix4x4<float>::RotationZ(angle).TransformPoint(v);
 }
 
 
@@ -139,12 +140,32 @@ int main(int argc, char* argv[]) {
 
     int8_t red, green, blue;
 
+    Maths::Vec3<> v0 = Maths::Vec3<>(400, 400, 0);
+    Maths::Vec3<> v1 = Maths::Vec3<>(600, 600, 0);
+    Maths::Vec3<> v2 = Maths::Vec3<>(200, 800, 0);
+
+    Maths::Vec3<> v0_base = Maths::Vec3<>(400, 400, 0);
+    Maths::Vec3<> v1_base = Maths::Vec3<>(600, 600, 0);
+    Maths::Vec3<> v2_base = Maths::Vec3<>(200, 800, 0);
+
+
+    Maths::Vec3<> TriangleCenter(
+        (v0_base.x + v1_base.x + v2_base.x) / 3.0f,
+        (v0_base.y + v1_base.y + v2_base.y) / 3.0f,
+        (v0_base.z + v1_base.z + v2_base.z) / 3.0f
+    );
+
+
     while (isRunning) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 isRunning = false;
             }
         }
+
+
+        float t = SDL_GetTicks() / 1000.f;
+
         std::fill(framebuffer.begin(), framebuffer.end(), 0x1A1A2EFF);
 
         //framebuffer[100 * RENDER_WIDTH + 160] = 0xFF0000FF;
@@ -159,9 +180,7 @@ int main(int argc, char* argv[]) {
                 put_pixel(framebuffer, x, y, convert_color(red, green, blue));
             }
        }*/
-        Vec2 v0 = Vec2(400, 400);
-        Vec2 v1 = Vec2(600, 600);
-        Vec2 v2 = Vec2(200, 800);
+
         draw_triangle(
             framebuffer,
             v0, v1, v2,
@@ -169,6 +188,14 @@ int main(int argc, char* argv[]) {
             0xFF00FF00,  // vert
             0xFF0000FF   // bleu
         );
+
+
+
+        Maths::Matrix4x4<> M = Maths::Matrix4x4<>::Translation(TriangleCenter) * Maths::Matrix4x4<float>::RotationZ(t) * Maths::Matrix4x4<>::Scale(Maths::Vec3<>(1.0f + 0.3f * sin(t), 1.0f + 0.3f * sin(t), 1.0f + 0.3f * sin(t))) * Maths::Matrix4x4<>::Translation(-TriangleCenter);
+
+        v0 = M.TransformPoint(v0_base);
+        v1 = M.TransformPoint(v1_base);
+        v2 = M.TransformPoint(v2_base);
 
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));
