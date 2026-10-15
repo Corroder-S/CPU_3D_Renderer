@@ -8,7 +8,7 @@
 
 namespace Maths
 {
-    template <std::floating_point T = float>
+    template <typename T = float>
     class Vec4
     {
     public:
@@ -20,7 +20,7 @@ namespace Maths
         Vec4();
         Vec4(T _x, T _y, T _z, T _w);
         Vec4(const Vec3<T>& v, T _w);
-        template <std::floating_point U>
+        template <typename U>
         explicit Vec4(const Vec4<U>& other);
 
         Vec4 operator+(const Vec4& rhs) const;
@@ -53,121 +53,138 @@ namespace Maths
 
     // --- Constructors ---
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>::Vec4() : x(0), y(0), z(0), w(0) {}
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>::Vec4(T _x, T _y, T _z, T _w) : x(_x), y(_y), z(_z), w(_w) {}
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>::Vec4(const Vec3<T>& v, T _w) : x(v.x), y(v.y), z(v.z), w(_w) {}
 
-    template <std::floating_point T>
-    template <std::floating_point U>
+    template <typename T>
+    template <typename U>
     Vec4<T>::Vec4(const Vec4<U>& other)
         : x(static_cast<T>(other.x)), y(static_cast<T>(other.y)),
           z(static_cast<T>(other.z)), w(static_cast<T>(other.w)) {}
 
     // --- Operators ---
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator+(const Vec4& rhs) const
     {
         return {x + rhs.x, y + rhs.y, z + rhs.z, w + rhs.w};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator-(const Vec4& rhs) const
     {
         return {x - rhs.x, y - rhs.y, z - rhs.z, w - rhs.w};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator*(const Vec4& rhs) const
     {
         return {x * rhs.x, y * rhs.y, z * rhs.z, w * rhs.w};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator/(const Vec4& rhs) const
     {
         assert(rhs.x != T{0} && rhs.y != T{0} && rhs.z != T{0} && rhs.w != T{0} && "Cannot divide by a zero component");
         return {x / rhs.x, y / rhs.y, z / rhs.z, w / rhs.w};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator-() const { return {-x, -y, -z, -w}; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator*(T scalar) const
     {
         return {x * scalar, y * scalar, z * scalar, w * scalar};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> Vec4<T>::operator/(T scalar) const
     {
         assert(scalar != T{0} && "Cannot divide by zero");
         return {x / scalar, y / scalar, z / scalar, w / scalar};
     }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator+=(const Vec4& rhs) { *this = *this + rhs; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator-=(const Vec4& rhs) { *this = *this - rhs; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator*=(const Vec4& rhs) { *this = *this * rhs; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator/=(const Vec4& rhs) { *this = *this / rhs; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator*=(T scalar) { *this = *this * scalar; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T>& Vec4<T>::operator/=(T scalar) { *this = *this / scalar; return *this; }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Vec4<T>::operator==(const Vec4& rhs) const
     {
         return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w;
     }
 
-    template <std::floating_point T>
+    template <typename T>
     bool Vec4<T>::operator!=(const Vec4& rhs) const { return !(*this == rhs); }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec4<T> operator*(T scalar, const Vec4<T>& v) { return v * scalar; }
 
-    // --- Instance methods (single-object operations) ---
+    // --- Instance methods ---
 
-    template <std::floating_point T>
+    template <typename T>
     T Vec4<T>::MagnitudeSquared() const { return x*x + y*y + z*z + w*w; }
 
-    template <std::floating_point T>
+    template <typename T>
     T Vec4<T>::Magnitude() const { return std::hypot(std::hypot(x, y), std::hypot(z, w)); }
 
-    template <std::floating_point T>
+    template <typename T>
     Vec3<T> Vec4<T>::xyz() const { return {x, y, z}; }
 
     // --- Static constants ---
 
-    template <std::floating_point T> const Vec4<T> Vec4<T>::Zero  {0, 0, 0, 0};
-    template <std::floating_point T> const Vec4<T> Vec4<T>::One   {1, 1, 1, 1};
-    template <std::floating_point T> const Vec4<T> Vec4<T>::UnitX {1, 0, 0, 0};
-    template <std::floating_point T> const Vec4<T> Vec4<T>::UnitY {0, 1, 0, 0};
-    template <std::floating_point T> const Vec4<T> Vec4<T>::UnitZ {0, 0, 1, 0};
-    template <std::floating_point T> const Vec4<T> Vec4<T>::UnitW {0, 0, 0, 1};
+    template <typename T> const Vec4<T> Vec4<T>::Zero  {0, 0, 0, 0};
+    template <typename T> const Vec4<T> Vec4<T>::One   {1, 1, 1, 1};
+    template <typename T> const Vec4<T> Vec4<T>::UnitX {1, 0, 0, 0};
+    template <typename T> const Vec4<T> Vec4<T>::UnitY {0, 1, 0, 0};
+    template <typename T> const Vec4<T> Vec4<T>::UnitZ {0, 0, 1, 0};
+    template <typename T> const Vec4<T> Vec4<T>::UnitW {0, 0, 0, 1};
 
-    // --- Free functions ---
+    // --- Free functions (any T) ---
 
-    template <std::floating_point T>
+    template <typename T>
     T Dot(const Vec4<T>& a, const Vec4<T>& b)
     {
         return a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
     }
+
+    template <typename T>
+    T DistanceSquared(const Vec4<T>& a, const Vec4<T>& b) { return (a - b).MagnitudeSquared(); }
+
+    template <typename T>
+    Vec4<T> Min(const Vec4<T>& a, const Vec4<T>& b)
+    {
+        return {std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z), std::min(a.w, b.w)};
+    }
+
+    template <typename T>
+    Vec4<T> Max(const Vec4<T>& a, const Vec4<T>& b)
+    {
+        return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z), std::max(a.w, b.w)};
+    }
+
+    // --- Free functions (floating point only) ---
 
     template <std::floating_point T>
     Vec4<T> Normalize(const Vec4<T>& v)
@@ -178,9 +195,6 @@ namespace Maths
         const Vec4<T> scaled = v / scale;
         return scaled / scaled.Magnitude();
     }
-
-    template <std::floating_point T>
-    T DistanceSquared(const Vec4<T>& a, const Vec4<T>& b) { return (a - b).MagnitudeSquared(); }
 
     template <std::floating_point T>
     T Distance(const Vec4<T>& a, const Vec4<T>& b) { return (a - b).Magnitude(); }
@@ -197,18 +211,7 @@ namespace Maths
         return a * (T{1} - t) + b * t;
     }
 
-    template <std::floating_point T>
-    Vec4<T> Min(const Vec4<T>& a, const Vec4<T>& b)
-    {
-        return {std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z), std::min(a.w, b.w)};
-    }
-
-    template <std::floating_point T>
-    Vec4<T> Max(const Vec4<T>& a, const Vec4<T>& b)
-    {
-        return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z), std::max(a.w, b.w)};
-    }
-
     using Vec4f = Vec4<float>;
     using Vec4d = Vec4<double>;
+    using Vec4i = Vec4<int>;
 }
