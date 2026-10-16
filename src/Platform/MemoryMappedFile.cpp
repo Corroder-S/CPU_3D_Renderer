@@ -2,7 +2,6 @@
 
 
 #ifdef _WIN32
-#include <iostream>
     #include <windows.h>
 
 MappedFile::MappedFile(const char *path)

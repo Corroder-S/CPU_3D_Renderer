@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
     char   title[160];
 
     std::vector<uint32_t> framebuffer(RENDER_WIDTH * RENDER_HEIGHT);
+    std::vector<float>    zbuffer(RENDER_WIDTH * RENDER_HEIGHT);
 
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
@@ -50,7 +51,7 @@ int main(int argc, char* argv[])
 
     std::vector<Maths::Vec3f> vertices;
     std::vector<Maths::Vec3i> faces;
-    LoadObj(ASSETS_PATH "spot.obj", vertices, faces);
+    LoadObj(ASSETS_PATH "Mario.obj", vertices, faces);
 
     std::cout << "vertices: " << vertices.size() << std::endl;
     std::cout << "faces: "    << faces.size()    << std::endl;
@@ -64,17 +65,18 @@ int main(int argc, char* argv[])
         }
 
         clear(rgb(16, 16, 24), framebuffer);
+        std::fill(zbuffer.begin(), zbuffer.end(), 1e30f);
 
         float t = SDL_GetTicks() / 1000.0f;
 
 
         Maths::Matrix4x4<> model = Maths::Model(
-            Maths::Vec3<>(0.0f, 0.0f, 0.0f),
-            Maths::Vec3<>(3.14f, t,    0.0f),
-            Maths::Vec3<>(1.0f, 1.0f, 1.0f)
-        );
+    Maths::Vec3<>(0.0f, 5.0f, 0.0f),  // descend le modèle
+    Maths::Vec3<>(3.14f, t, 0.0f),
+    Maths::Vec3<>(1.0f, 1.0f, 1.0f)
+);
         Maths::Matrix4x4<> view = Maths::LookAt(
-            Maths::Vec3<>(0.0f, 0.0f, -3.0f),
+            Maths::Vec3<>(0.0f, 0.0f, -5.0f),  // caméra plus loin
             Maths::Vec3<>(0.0f, 0.0f,  0.0f),
             Maths::Vec3<>(0.0f, 1.0f,  0.0f)
         );
@@ -90,19 +92,15 @@ int main(int argc, char* argv[])
         Maths::Matrix4x4<> MVP = proj * view * model;
 
         std::vector<Maths::Vec2i> projected(vertices.size());
-        projectMesh(MVP, vertices.data(), vertices.size(), projected.data());
+        std::vector<float>        depths(vertices.size());
+        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data());
 
         for (auto& f : faces)
         {
-            drawline(projected[f.x].x, projected[f.x].y,
-                     projected[f.y].x, projected[f.y].y,
-                     rgb(255, 255, 255), framebuffer);
-            drawline(projected[f.y].x, projected[f.y].y,
-                     projected[f.z].x, projected[f.z].y,
-                     rgb(255, 255, 255), framebuffer);
-            drawline(projected[f.z].x, projected[f.z].y,
-                     projected[f.x].x, projected[f.x].y,
-                     rgb(255, 255, 255), framebuffer);
+            Maths::Vec3f a = { (float)projected[f.x].x, (float)projected[f.x].y, depths[f.x] };
+            Maths::Vec3f b = { (float)projected[f.y].x, (float)projected[f.y].y, depths[f.y] };
+            Maths::Vec3f c = { (float)projected[f.z].x, (float)projected[f.z].y, depths[f.z] };
+            drawTriangle(a, b, c, 0, 0, 0, framebuffer, zbuffer);
         }
 
 

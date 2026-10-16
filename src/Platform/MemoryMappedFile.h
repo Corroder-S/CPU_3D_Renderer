@@ -8,7 +8,6 @@ public:
     MappedFile(const char* path);
     ~MappedFile();
 
-    // Pas de copie
     MappedFile(const MappedFile&)            = delete;
     MappedFile& operator=(const MappedFile&) = delete;
 

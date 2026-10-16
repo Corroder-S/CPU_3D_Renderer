@@ -1,7 +1,5 @@
 ﻿#include "ObjLoader.h"
 
-#include <iostream>
-#include <string>
 
 
 bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vector<Maths::Vec3i> &outFaces)
@@ -36,8 +34,6 @@ bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vect
         data++;
     }
 
-    std::cout << "face[0]: " << outFaces[0].x << " " << outFaces[0].y << " " << outFaces[0].z << std::endl;
-    std::cout << "face[-1]: " << outFaces.back().x << " " << outFaces.back().y << " " << outFaces.back().z << std::endl;
     return true;
 
 }
