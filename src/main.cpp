@@ -50,11 +50,14 @@ int main(int argc, char* argv[])
     SDL_Event event;
 
     std::vector<Maths::Vec3f> vertices;
-    std::vector<Maths::Vec3i> faces;
-    LoadObj(ASSETS_PATH "Mario.obj", vertices, faces);
+    std::vector<face> faces;
+    std::vector<Maths::Vec2f> uvs;
+    LoadObj(ASSETS_PATH "Mario.obj", vertices, uvs, faces);
 
     std::cout << "vertices: " << vertices.size() << std::endl;
+    std::cout << "uvs: "    << uvs.size()    << std::endl;
     std::cout << "faces: "    << faces.size()    << std::endl;
+
 
     while (isRunning)
     {
@@ -97,12 +100,13 @@ int main(int argc, char* argv[])
 
         for (auto& f : faces)
         {
-            Maths::Vec3f a = { (float)projected[f.x].x, (float)projected[f.x].y, depths[f.x] };
-            Maths::Vec3f b = { (float)projected[f.y].x, (float)projected[f.y].y, depths[f.y] };
-            Maths::Vec3f c = { (float)projected[f.z].x, (float)projected[f.z].y, depths[f.z] };
+            Maths::Vec3f a = { (float)projected[f.v.x].x, (float)projected[f.v.x].y, depths[f.v.x] };
+            Maths::Vec3f b = { (float)projected[f.v.y].x, (float)projected[f.v.y].y, depths[f.v.y] };
+            Maths::Vec3f c = { (float)projected[f.v.z].x, (float)projected[f.v.z].y, depths[f.v.z] };
 
-            float area = edge(a, b, c);
+            int area = edge(a, b, c);
             if (area >= 0) continue;
+
 
             drawTriangle(a, b, c, 0, 0, 0, framebuffer, zbuffer);
         }

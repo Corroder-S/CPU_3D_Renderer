@@ -2,7 +2,7 @@
 
 
 
-bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vector<Maths::Vec3i> &outFaces)
+bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face> &outFaces)
 {
     MappedFile file(path);
     if (!file.IsOpen()) return false;
@@ -19,16 +19,26 @@ bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vect
             float z = std::strtof(p, (char**)&p);
             outVertices.push_back(Maths::Vec3f(x, y, z));
         }
+        else if (data[0] == 'vt' && data[1] == ' ')
+        {
+            const char* p = data + 2;
+            float x = std::strtof(p, (char**)&p);
+            float y = std::strtof(p, (char**)&p);
+            outuvs.push_back(Maths::Vec2f(x, y));
+        }
         else if (data[0] == 'f' && data[1] == ' ')
         {
             const char* p = data + 2;
             int v1 = std::strtol(p, (char**)&p, 10) - 1;
-            while (*p && *p != ' ' && *p != '\n') p++;
+            if (*p == '/') p++;
+            int t1 = std::strtol(p, (char**)&p, 10) - 1;
             int v2 = std::strtol(p, (char**)&p, 10) - 1;
-            while (*p && *p != ' ' && *p != '\n') p++;
+            if (*p == '/') p++;
+            int t2 = std::strtol(p, (char**)&p, 10) - 1;
             int v3 = std::strtol(p, (char**)&p, 10) - 1;
-            while (*p && *p != ' ' && *p != '\n') p++;
-            outFaces.push_back(Maths::Vec3i(v1, v2, v3));
+            if (*p == '/') p++;
+            int t3 = std::strtol(p, (char**)&p, 10) - 1;
+            outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
         }
         while (data < end && *data != '\n') data++;
         data++;

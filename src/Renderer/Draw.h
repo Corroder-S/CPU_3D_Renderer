@@ -32,6 +32,7 @@ static inline int edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
 
 static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                                 uint32_t c0, uint32_t c1, uint32_t c2,
+                                
                                 std::vector<uint32_t>& framebuffer,
                                 std::vector<float>& zbuffer)
 {
