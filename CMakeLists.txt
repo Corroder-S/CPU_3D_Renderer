@@ -19,7 +19,7 @@ add_subdirectory(Maths)
 add_executable(cpu_renderer_sdl src/main.cpp
         src/Parsing/ObjLoader.cpp
         src/Platform/MemoryMappedFile.h
-        src/Platform/MemoryMappedFile.cpp)
+        src/Platform/MemoryMappedFile.cpp "src/Renderer/Texture.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 
