@@ -100,6 +100,10 @@ int main(int argc, char* argv[])
             Maths::Vec3f a = { (float)projected[f.x].x, (float)projected[f.x].y, depths[f.x] };
             Maths::Vec3f b = { (float)projected[f.y].x, (float)projected[f.y].y, depths[f.y] };
             Maths::Vec3f c = { (float)projected[f.z].x, (float)projected[f.z].y, depths[f.z] };
+
+            float area = edge(a, b, c);
+            if (area >= 0) continue;
+
             drawTriangle(a, b, c, 0, 0, 0, framebuffer, zbuffer);
         }
 
