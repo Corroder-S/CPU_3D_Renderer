@@ -1,23 +1,5 @@
-#pragma once
-#define STB_IMAGE_IMPLEMENTATION
-#include <iostream>
-#include <string>
-#include <vector>
-#include <cstdint>
-#include "External/stb/stb_image.h"
-
-
-struct Texture {
-    int width = 0;
-    int height = 0;
-    std::vector<uint32_t> pixels;
-
-    bool load(const std::string& filepath);
-
-    bool isValid() const {
-        return !pixels.empty() && width > 0 && height > 0;
-    }
-};
+﻿#define STB_IMAGE_IMPLEMENTATION
+#include "Texture.h"
 
 
 bool Texture::load(const std::string& filepath) {

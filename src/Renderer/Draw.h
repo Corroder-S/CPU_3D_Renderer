@@ -2,7 +2,7 @@
 
 #include "Framebuffer.h"
 #include "Maths/Vec2.h"
-#include "Texture.h"
+#include "../Asset/Texture.h"
 #include <cstdint>
 
 static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
@@ -38,15 +38,8 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                                 std::vector<float>& zbuffer,
                                 const Texture& texture)
 {
-    int area = edge(a, b, c);
-    if (area == 0) return;
-    if (area < 0)
-    {
-        std::swap(b, c);
-        std::swap(uvy, uvz);
-        std::swap(invW.y, invW.z);
-        area = -area;
-    }
+    int area = -edge(a, b, c);
+    if (area <= 0) return;
 
     int minX = std::max(0,                 std::min({(int)a.x, (int)b.x, (int)c.x}));
     int maxX = std::min(RENDER_WIDTH  - 1, std::max({(int)a.x, (int)b.x, (int)c.x}));

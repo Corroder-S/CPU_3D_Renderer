@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("3D CPU Engine", 1280, 800, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("3D CPU Engine", RENDER_WIDTH, RENDER_HEIGHT, SDL_WINDOW_RESIZABLE);
     if (!window)
     {
         std::cerr << "Erreur création fenêtre : " << SDL_GetError() << std::endl;
@@ -57,14 +57,14 @@ int main(int argc, char* argv[])
     Texture AssetTexture;
     AssetTexture.load(ASSETS_PATH "spot_texture.png");
 
-
-
     std::cout << "vertices: " << vertices.size() << std::endl;
     std::cout << "uvs: "    << uvs.size()    << std::endl;
     std::cout << "faces: "    << faces.size()    << std::endl;
 
 
-
+    std::vector<Maths::Vec2i> projected(vertices.size());
+    std::vector<float>        depths(vertices.size());
+    std::vector<float>        invWs(vertices.size());
 
     while (isRunning)
     {
@@ -101,10 +101,8 @@ int main(int argc, char* argv[])
 
         Maths::Matrix4x4<> MVP = proj * view * model;
 
-        std::vector<Maths::Vec2i> projected(vertices.size());
-        std::vector<float>        depths(vertices.size());
-        std::vector<float>        invWs(vertices.size());
-        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data(), invWs.data());
+
+        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data(), invWs.data(), RENDER_WIDTH, RENDER_HEIGHT);
 
         for (auto& f : faces)
         {
@@ -116,7 +114,6 @@ int main(int argc, char* argv[])
             if (area >= 0) continue;
 
             Maths::Vec3f invW = { invWs[f.v.x], invWs[f.v.y], invWs[f.v.z] };
-
 
             drawTriangle(a, b, c, uvs[f.uv.x], uvs[f.uv.y], uvs[f.uv.z], invW, framebuffer, zbuffer, AssetTexture);
         }

@@ -3,8 +3,9 @@
 #include <vector>
 #include <cstdint>
 
-constexpr int RENDER_WIDTH  = 900;
-constexpr int RENDER_HEIGHT = 700;
+constexpr int RENDER_WIDTH  = 1280;
+constexpr int RENDER_HEIGHT = 800;
+
 
 static inline uint32_t rgb(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -23,6 +24,6 @@ static inline void put_pixel(int x, int y, uint32_t color, std::vector<uint32_t>
 
 static inline void clear(uint32_t color, std::vector<uint32_t>& framebuffer)
 {
-    for (int i = 0; i < RENDER_WIDTH * RENDER_HEIGHT; i++)
+    for (int i = 0; i < framebuffer.size(); i++)
         framebuffer[i] = color;
 }
