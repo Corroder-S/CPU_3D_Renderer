@@ -8,6 +8,8 @@
 #include "Renderer/Draw.h"
 #include "Renderer/Pipeline.h"
 #include "Parsing/ObjLoader.h"
+#include "Asset/Light.h"
+
 
 
 int main(int argc, char* argv[])
@@ -49,22 +51,22 @@ int main(int argc, char* argv[])
     bool isRunning = true;
     SDL_Event event;
 
-    std::vector<Maths::Vec3f> vertices;
-    std::vector<face> faces;
-    std::vector<Maths::Vec2f> uvs;
-    LoadObj(ASSETS_PATH "spot.obj", vertices, uvs, faces);
+    Mesh spot = LoadMesh(ASSETS_PATH "spot.obj");
+
+    Light light;
 
     Texture AssetTexture;
     AssetTexture.load(ASSETS_PATH "spot_texture.png");
 
-    std::cout << "vertices: " << vertices.size() << std::endl;
-    std::cout << "uvs: "    << uvs.size()    << std::endl;
-    std::cout << "faces: "    << faces.size()    << std::endl;
+    std::cout << "vertices: " << spot.vertices.size() << std::endl;
+    std::cout << "uvs: "    << spot.uvs.size()    << std::endl;
+    std::cout << "faces: "    << spot.faces.size()    << std::endl;
+    std::cout << "normals: " << spot.normals.size() << std::endl;
 
 
-    std::vector<Maths::Vec2i> projected(vertices.size());
-    std::vector<float>        depths(vertices.size());
-    std::vector<float>        invWs(vertices.size());
+    std::vector<Maths::Vec2i> projected(spot.vertices.size());
+    std::vector<float>        depths(spot.vertices.size());
+    std::vector<float>        invWs(spot.vertices.size());
 
     while (isRunning)
     {
@@ -81,7 +83,7 @@ int main(int argc, char* argv[])
 
 
         Maths::Matrix4x4<> model = Maths::Model(
-        Maths::Vec3<>(0.0f, 1.0f, 0.0f),  // descend le modèle
+        Maths::Vec3<>(0.0f, 0.0f, 0.0f),  // descend le modèle
     Maths::Vec3<>(3.14f, t, 0.0f),
     Maths::Vec3<>(1.0f, 1.0f, 1.0f)
 );
@@ -102,9 +104,10 @@ int main(int argc, char* argv[])
         Maths::Matrix4x4<> MVP = proj * view * model;
 
 
-        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data(), invWs.data(), RENDER_WIDTH, RENDER_HEIGHT);
 
-        for (auto& f : faces)
+        projectMesh(MVP, spot.vertices.data(), spot.vertices.size(), projected.data(), depths.data(), invWs.data(), RENDER_WIDTH, RENDER_HEIGHT);
+
+        for (auto& f : spot.faces)
         {
             Maths::Vec3f a = { (float)projected[f.v.x].x, (float)projected[f.v.x].y, depths[f.v.x] };
             Maths::Vec3f b = { (float)projected[f.v.y].x, (float)projected[f.v.y].y, depths[f.v.y] };
@@ -112,12 +115,17 @@ int main(int argc, char* argv[])
 
             int area = edge(a, b, c);
             if (area >= 0) continue;
-
             Maths::Vec3f invW = { invWs[f.v.x], invWs[f.v.y], invWs[f.v.z] };
 
-            drawTriangle(a, b, c, uvs[f.uv.x], uvs[f.uv.y], uvs[f.uv.z], invW, framebuffer, zbuffer, AssetTexture);
-        }
 
+
+            Maths::Vec3f worldNormal = model.TransformDirection(spot.normals[&f - spot.faces.data()]);
+            float brightness;
+
+            computeBrightness(worldNormal, light.direction, light.ambient, brightness);
+
+            drawTriangle(a, b, c, spot.uvs[f.uv.x], spot.uvs[f.uv.y], spot.uvs[f.uv.z], invW, framebuffer, zbuffer, AssetTexture, brightness);
+        }
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));
         SDL_RenderClear(renderer);

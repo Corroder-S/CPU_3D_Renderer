@@ -36,10 +36,18 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                                 Maths::Vec3f invW,
                                 std::vector<uint32_t>& framebuffer,
                                 std::vector<float>& zbuffer,
-                                const Texture& texture)
+                                const Texture& texture,
+                                float& brightness)
 {
-    int area = -edge(a, b, c);
-    if (area <= 0) return;
+    int area = edge(a, b, c);
+    if (area == 0) return;
+    if (area < 0)
+    {
+        std::swap(b, c);
+        std::swap(uvy, uvz);
+        std::swap(invW.y, invW.z);
+        area = -area;
+    }
 
     int minX = std::max(0,                 std::min({(int)a.x, (int)b.x, (int)c.x}));
     int maxX = std::min(RENDER_WIDTH  - 1, std::max({(int)a.x, (int)b.x, (int)c.x}));
@@ -77,7 +85,12 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                     int tx = std::clamp((int)(u * texture.width),  0, texture.width  - 1);
                     int ty = std::clamp((int)((1.0f - v) * texture.height), 0, texture.height - 1);
 
-                    uint32_t color = texture.pixels[ty * texture.width + tx];
+                    uint32_t texel = texture.pixels[ty * texture.width + tx];
+                    uint8_t r = (uint8_t)(((texel >> 16) & 0xFF) * brightness);
+                    uint8_t g = (uint8_t)(((texel >>  8) & 0xFF) * brightness);
+                    uint8_t b = (uint8_t)(((texel >>  0) & 0xFF) * brightness);
+                    uint32_t color = (texel & 0xFF000000) | (r << 16) | (g << 8) | b;
+
                     zbuffer[y * RENDER_WIDTH + x] = z;
                     put_pixel(x, y, color, framebuffer, RENDER_WIDTH, RENDER_HEIGHT);
                 }

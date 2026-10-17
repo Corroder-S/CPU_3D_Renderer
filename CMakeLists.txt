@@ -21,7 +21,9 @@ add_executable(cpu_renderer_sdl src/main.cpp
         src/Platform/MemoryMappedFile.h
         src/Platform/MemoryMappedFile.cpp
         src/Asset/Mesh.h
-        src/Asset/Texture.cpp)
+        src/Asset/Texture.cpp
+        src/Asset/Light.h
+        src/Asset/Mesh.cpp)
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 

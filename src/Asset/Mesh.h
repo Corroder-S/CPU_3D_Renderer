@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 #include "Maths/Vec2.h"
 #include "Maths/Vec3.h"
@@ -15,3 +16,6 @@ struct Mesh {
     std::vector<face>         faces;
     std::vector<Maths::Vec3f> normals;
 };
+
+
+Mesh LoadMesh(const char* path);
