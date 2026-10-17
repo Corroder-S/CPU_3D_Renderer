@@ -13,16 +13,18 @@ static inline Maths::Vec2i viewport(float ndcX, float ndcY, int width, int heigh
         (int)((1.0f - (ndcY + 1.0f) * 0.5f) * height));
 }
 
-static inline void projectVertex(const Maths::Matrix4x4<>& mvp, const Maths::Vec3<> vertex, Maths::Vec2i& out, float& depth)
+static inline void projectVertex(const Maths::Matrix4x4<>& mvp, const Maths::Vec3<> vertex, Maths::Vec2i& out, float& depth, float& invW)
 {
     Maths::Vec4<> clip = mvp * Maths::Vec4<>(vertex, 1.0f);
     Maths::Vec3<> ndc  = { clip.x / clip.w, clip.y / clip.w, clip.z / clip.w };
     out   = viewport(ndc.x, ndc.y, RENDER_WIDTH, RENDER_HEIGHT);
     depth = ndc.z;
+    invW  = 1.0f / clip.w;
 }
 
-static inline void projectMesh(const Maths::Matrix4x4<>& mvp, const Maths::Vec3<>* vertices, int vertexCount, Maths::Vec2i* out, float* depths)
+static inline void projectMesh(const Maths::Matrix4x4<>& mvp, const Maths::Vec3<>* vertices, int vertexCount, Maths::Vec2i* out, float* depths, float* invWs)
 {
     for (int i = 0; i < vertexCount; i++)
-        projectVertex(mvp, vertices[i], out[i], depths[i]);
+        projectVertex(mvp, vertices[i], out[i], depths[i], invWs[i]);
+
 }

@@ -52,11 +52,18 @@ int main(int argc, char* argv[])
     std::vector<Maths::Vec3f> vertices;
     std::vector<face> faces;
     std::vector<Maths::Vec2f> uvs;
-    LoadObj(ASSETS_PATH "Mario.obj", vertices, uvs, faces);
+    LoadObj(ASSETS_PATH "spot.obj", vertices, uvs, faces);
+
+    Texture AssetTexture;
+    AssetTexture.load(ASSETS_PATH "spot_texture.png");
+
+
 
     std::cout << "vertices: " << vertices.size() << std::endl;
     std::cout << "uvs: "    << uvs.size()    << std::endl;
     std::cout << "faces: "    << faces.size()    << std::endl;
+
+
 
 
     while (isRunning)
@@ -74,7 +81,7 @@ int main(int argc, char* argv[])
 
 
         Maths::Matrix4x4<> model = Maths::Model(
-    Maths::Vec3<>(0.0f, 5.0f, 0.0f),  // descend le modèle
+        Maths::Vec3<>(0.0f, 1.0f, 0.0f),  // descend le modèle
     Maths::Vec3<>(3.14f, t, 0.0f),
     Maths::Vec3<>(1.0f, 1.0f, 1.0f)
 );
@@ -96,7 +103,8 @@ int main(int argc, char* argv[])
 
         std::vector<Maths::Vec2i> projected(vertices.size());
         std::vector<float>        depths(vertices.size());
-        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data());
+        std::vector<float>        invWs(vertices.size());
+        projectMesh(MVP, vertices.data(), vertices.size(), projected.data(), depths.data(), invWs.data());
 
         for (auto& f : faces)
         {
@@ -107,8 +115,10 @@ int main(int argc, char* argv[])
             int area = edge(a, b, c);
             if (area >= 0) continue;
 
+            Maths::Vec3f invW = { invWs[f.v.x], invWs[f.v.y], invWs[f.v.z] };
 
-            drawTriangle(a, b, c, 0, 0, 0, framebuffer, zbuffer);
+
+            drawTriangle(a, b, c, uvs[f.uv.x], uvs[f.uv.y], uvs[f.uv.z], invW, framebuffer, zbuffer, AssetTexture);
         }
 
 

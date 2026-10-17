@@ -1,10 +1,11 @@
 #pragma once
-
+#define STB_IMAGE_IMPLEMENTATION
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cstdint>
 #include "External/stb/stb_image.h"
+
 
 struct Texture {
     int width = 0;
@@ -46,6 +47,6 @@ bool Texture::load(const std::string& filepath) {
 
     stbi_image_free(data);
 
-    std::cout << "[Texture] Chargée : " << filepath << " (" << width << "x" << height << ")" << std::endl;
+    std::cout << "[Texture] Chargï¿½e : " << filepath << " (" << width << "x" << height << ")" << std::endl;
     return true;
 }
