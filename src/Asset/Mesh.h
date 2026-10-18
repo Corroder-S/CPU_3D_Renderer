@@ -14,7 +14,8 @@ struct Mesh {
     std::vector<Maths::Vec3f> vertices;
     std::vector<Maths::Vec2f> uvs;
     std::vector<face>         faces;
-    std::vector<Maths::Vec3f> normals;
+    std::vector<Maths::Vec3f> faceNormals;
+    std::vector<Maths::Vec3f> vertexNormals;
 };
 
 

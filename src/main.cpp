@@ -61,7 +61,8 @@ int main(int argc, char* argv[])
     std::cout << "vertices: " << spot.vertices.size() << std::endl;
     std::cout << "uvs: "    << spot.uvs.size()    << std::endl;
     std::cout << "faces: "    << spot.faces.size()    << std::endl;
-    std::cout << "normals: " << spot.normals.size() << std::endl;
+    std::cout << "faceNormals: " << spot.faceNormals.size() << std::endl;
+    std::cout << "vertexNormals: " << spot.vertexNormals.size() << std::endl;
 
 
     std::vector<Maths::Vec2i> projected(spot.vertices.size());
@@ -117,14 +118,7 @@ int main(int argc, char* argv[])
             if (area >= 0) continue;
             Maths::Vec3f invW = { invWs[f.v.x], invWs[f.v.y], invWs[f.v.z] };
 
-
-
-            Maths::Vec3f worldNormal = model.TransformDirection(spot.normals[&f - spot.faces.data()]);
-            float brightness;
-
-            computeBrightness(worldNormal, light.direction, light.ambient, brightness);
-
-            drawTriangle(a, b, c, spot.uvs[f.uv.x], spot.uvs[f.uv.y], spot.uvs[f.uv.z], invW, framebuffer, zbuffer, AssetTexture, brightness);
+            drawTriangle(a, b, c, spot.uvs[f.uv.x], spot.uvs[f.uv.y], spot.uvs[f.uv.z], invW, spot.vertexNormals[f.v.x], spot.vertexNormals[f.v.y], spot.vertexNormals[f.v.z], framebuffer, zbuffer, AssetTexture, model, light);
         }
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));

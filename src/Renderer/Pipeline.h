@@ -31,7 +31,7 @@ static inline void projectMesh(const Maths::Matrix4x4<>& mvp, const Maths::Vec3<
         projectVertex(mvp, vertices[i], out[i], depths[i], invWs[i], width, height);
 }
 
-static inline void computeBrightness(Maths::Vec3f& normal, Maths::Vec3f& lightDirection,  float ambient, float& outBrightness)
+static inline void computeBrightness(Maths::Vec3f& normal, Maths::Vec3f lightDirection,  float ambient, float& outBrightness)
 {
     float diffuse = std::max(0.0f,Maths::Dot(normal, lightDirection));
 

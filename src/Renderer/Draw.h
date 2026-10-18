@@ -5,6 +5,11 @@
 #include "../Asset/Texture.h"
 #include <cstdint>
 
+#include "Pipeline.h"
+#include "Asset/Light.h"
+#include "Maths/Matrix4x4.h"
+
+
 static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
 {
     int dx =  abs(x1 - x0);
@@ -34,10 +39,13 @@ static inline int edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
 static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                                 Maths::Vec2f uvx, Maths::Vec2f uvy, Maths::Vec2f uvz,
                                 Maths::Vec3f invW,
+                                Maths::Vec3f vN1, Maths::Vec3f vN2, Maths::Vec3f vN3,
                                 std::vector<uint32_t>& framebuffer,
                                 std::vector<float>& zbuffer,
                                 const Texture& texture,
-                                float& brightness)
+                                Maths::Matrix4x4<>& model,
+                                const Light& light
+                                )
 {
     int area = edge(a, b, c);
     if (area == 0) return;
@@ -46,6 +54,7 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
         std::swap(b, c);
         std::swap(uvy, uvz);
         std::swap(invW.y, invW.z);
+        std::swap(vN2, vN3);
         area = -area;
     }
 
@@ -58,6 +67,9 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     float u1w = uvy.x * invW.y,  v1w = uvy.y * invW.y;
     float u2w = uvz.x * invW.z,  v2w = uvz.y * invW.z;
 
+    Maths::Vec3f wn0 = model.TransformDirection(vN1);
+    Maths::Vec3f wn1 = model.TransformDirection(vN2);
+    Maths::Vec3f wn2 = model.TransformDirection(vN3);
 
     for (int y = minY; y <= maxY; y++)
     {
@@ -75,6 +87,14 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                 float z = (w0 * a.z + w1 * b.z + w2 * c.z) / (float)area;
                 if (z < zbuffer[y * RENDER_WIDTH + x])
                 {
+                    float fw0 = (float)w0 / area;
+                    float fw1 = (float)w1 / area;
+                    float fw2 = (float)w2 / area;
+                    Maths::Vec3f N = Maths::Normalize(wn0 * fw0 + wn1 * fw1 + wn2 * fw2);
+
+
+                    float brightness;
+                    computeBrightness(N, light.direction, light.ambient,  brightness);
                     float uw = (w0 * u0w + w1 * u1w + w2 * u2w) / area;
                     float vw = (w0 * v0w + w1 * v1w + w2 * v2w) / area;
                     float iw = (w0 * invW.x + w1 * invW.y + w2 * invW.z) / area;
@@ -90,6 +110,7 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                     uint8_t g = (uint8_t)(((texel >>  8) & 0xFF) * brightness);
                     uint8_t b = (uint8_t)(((texel >>  0) & 0xFF) * brightness);
                     uint32_t color = (texel & 0xFF000000) | (r << 16) | (g << 8) | b;
+
 
                     zbuffer[y * RENDER_WIDTH + x] = z;
                     put_pixel(x, y, color, framebuffer, RENDER_WIDTH, RENDER_HEIGHT);
