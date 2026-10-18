@@ -23,7 +23,7 @@ add_executable(cpu_renderer_sdl src/main.cpp
         src/Asset/Mesh.h
         src/Asset/Texture.cpp
         src/Asset/Light.h
-        src/Asset/Mesh.cpp)
+        src/Asset/Mesh.cpp "src/Renderer/clip.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 
@@ -31,4 +31,10 @@ target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/
 
 target_compile_definitions(cpu_renderer_sdl PRIVATE
         ASSETS_PATH="${CMAKE_SOURCE_DIR}/Asset/"
+)
+
+add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:SDL3::SDL3>
+        $<TARGET_FILE_DIR:cpu_renderer_sdl>
 )

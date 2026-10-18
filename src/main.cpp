@@ -7,8 +7,10 @@
 #include "Renderer/Framebuffer.h"
 #include "Renderer/Draw.h"
 #include "Renderer/Pipeline.h"
+#include "Renderer/Clip.h"
 #include "Parsing/ObjLoader.h"
 #include "Asset/Light.h"
+
 
 
 
@@ -65,9 +67,8 @@ int main(int argc, char* argv[])
     std::cout << "vertexNormals: " << spot.vertexNormals.size() << std::endl;
 
 
-    std::vector<Maths::Vec2i> projected(spot.vertices.size());
-    std::vector<float>        depths(spot.vertices.size());
-    std::vector<float>        invWs(spot.vertices.size());
+    std::vector<Maths::Vec4f> clipPositions(spot.vertices.size());
+    std::vector<Maths::Vec3f> worldNormals(spot.vertices.size());
 
     while (isRunning)
     {
@@ -84,12 +85,12 @@ int main(int argc, char* argv[])
 
 
         Maths::Matrix4x4<> model = Maths::Model(
-        Maths::Vec3<>(0.0f, 0.0f, 0.0f),  // descend le modèle
+        Maths::Vec3<>(0.0f, 0.0f, 0.0f),
     Maths::Vec3<>(3.14f, t, 0.0f),
     Maths::Vec3<>(1.0f, 1.0f, 1.0f)
 );
         Maths::Matrix4x4<> view = Maths::LookAt(
-            Maths::Vec3<>(0.0f, 0.0f, -5.0f),  // caméra plus loin
+            Maths::Vec3<>(0.0f, 0.0f, 0.4f),
             Maths::Vec3<>(0.0f, 0.0f,  0.0f),
             Maths::Vec3<>(0.0f, 1.0f,  0.0f)
         );
@@ -106,19 +107,58 @@ int main(int argc, char* argv[])
 
 
 
-        projectMesh(MVP, spot.vertices.data(), spot.vertices.size(), projected.data(), depths.data(), invWs.data(), RENDER_WIDTH, RENDER_HEIGHT);
+        for (size_t i = 0; i < spot.vertices.size(); ++i)
+        {
+            clipPositions[i] = MVP * Maths::Vec4f(spot.vertices[i], 1.0f);
+            worldNormals[i] = model.TransformDirection(spot.vertexNormals[i]);
+        }
 
         for (auto& f : spot.faces)
         {
-            Maths::Vec3f a = { (float)projected[f.v.x].x, (float)projected[f.v.x].y, depths[f.v.x] };
-            Maths::Vec3f b = { (float)projected[f.v.y].x, (float)projected[f.v.y].y, depths[f.v.y] };
-            Maths::Vec3f c = { (float)projected[f.v.z].x, (float)projected[f.v.z].y, depths[f.v.z] };
+            ClipVertex v0 = { clipPositions[f.v.x], spot.uvs[f.uv.x], worldNormals[f.v.x] };
+            ClipVertex v1 = { clipPositions[f.v.y], spot.uvs[f.uv.y], worldNormals[f.v.y] };
+            ClipVertex v2 = { clipPositions[f.v.z], spot.uvs[f.uv.z], worldNormals[f.v.z] };
 
-            int area = edge(a, b, c);
-            if (area >= 0) continue;
-            Maths::Vec3f invW = { invWs[f.v.x], invWs[f.v.y], invWs[f.v.z] };
 
-            drawTriangle(a, b, c, spot.uvs[f.uv.x], spot.uvs[f.uv.y], spot.uvs[f.uv.z], invW, spot.vertexNormals[f.v.x], spot.vertexNormals[f.v.y], spot.vertexNormals[f.v.z], framebuffer, zbuffer, AssetTexture, model, light);
+            ClipVertex clipped[6];
+            int numTris = clipTriangleNear(v0, v1, v2, clipped);
+
+            for (int i = 0; i < numTris; ++i)
+            {
+                const ClipVertex& tv0 = clipped[i * 3 + 0];
+                const ClipVertex& tv1 = clipped[i * 3 + 1];
+                const ClipVertex& tv2 = clipped[i * 3 + 2];
+
+                // Division perspective (1 / w)
+                Maths::Vec3f invW = { 1.0f / tv0.clip.w, 1.0f / tv1.clip.w, 1.0f / tv2.clip.w };
+
+                // Coordonnées NDC
+                Maths::Vec3f ndc0 = { tv0.clip.x * invW.x, tv0.clip.y * invW.x, tv0.clip.z * invW.x };
+                Maths::Vec3f ndc1 = { tv1.clip.x * invW.y, tv1.clip.y * invW.y, tv1.clip.z * invW.y };
+                Maths::Vec3f ndc2 = { tv2.clip.x * invW.z, tv2.clip.y * invW.z, tv2.clip.z * invW.z };
+
+                // Transformation Viewport
+                Maths::Vec2i sc0 = viewport(ndc0.x, ndc0.y, RENDER_WIDTH, RENDER_HEIGHT);
+                Maths::Vec2i sc1 = viewport(ndc1.x, ndc1.y, RENDER_WIDTH, RENDER_HEIGHT);
+                Maths::Vec2i sc2 = viewport(ndc2.x, ndc2.y, RENDER_WIDTH, RENDER_HEIGHT);
+
+                Maths::Vec3f a = { (float)sc0.x, (float)sc0.y, ndc0.z };
+                Maths::Vec3f b = { (float)sc1.x, (float)sc1.y, ndc1.z };
+                Maths::Vec3f c = { (float)sc2.x, (float)sc2.y, ndc2.z };
+
+                // Backface Culling en Screen Space
+                int area = edge(a, b, c);
+                if (area >= 0) continue;
+
+                // Rasterisation
+                drawTriangle(
+                    a, b, c,
+                    tv0.uv, tv1.uv, tv2.uv,
+                    invW,
+                    tv0.normal, tv1.normal, tv2.normal,
+                    framebuffer, zbuffer, AssetTexture, light
+                );
+            }
         }
 
         SDL_UpdateTexture(texture, nullptr, framebuffer.data(), RENDER_WIDTH * sizeof(uint32_t));

@@ -37,15 +37,13 @@ static inline int edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
 
 
 static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
-                                Maths::Vec2f uvx, Maths::Vec2f uvy, Maths::Vec2f uvz,
-                                Maths::Vec3f invW,
-                                Maths::Vec3f vN1, Maths::Vec3f vN2, Maths::Vec3f vN3,
-                                std::vector<uint32_t>& framebuffer,
-                                std::vector<float>& zbuffer,
-                                const Texture& texture,
-                                Maths::Matrix4x4<>& model,
-                                const Light& light
-                                )
+    Maths::Vec2f uvx, Maths::Vec2f uvy, Maths::Vec2f uvz,
+    Maths::Vec3f invW,
+    Maths::Vec3f wn0, Maths::Vec3f wn1, Maths::Vec3f wn2,
+    std::vector<uint32_t>& framebuffer,
+    std::vector<float>& zbuffer,
+    const Texture& texture,
+    const Light& light)
 {
     int area = edge(a, b, c);
     if (area == 0) return;
@@ -54,67 +52,64 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
         std::swap(b, c);
         std::swap(uvy, uvz);
         std::swap(invW.y, invW.z);
-        std::swap(vN2, vN3);
+        std::swap(wn1, wn2);
         area = -area;
     }
 
-    int minX = std::max(0,                 std::min({(int)a.x, (int)b.x, (int)c.x}));
-    int maxX = std::min(RENDER_WIDTH  - 1, std::max({(int)a.x, (int)b.x, (int)c.x}));
-    int minY = std::max(0,                 std::min({(int)a.y, (int)b.y, (int)c.y}));
-    int maxY = std::min(RENDER_HEIGHT - 1, std::max({(int)a.y, (int)b.y, (int)c.y}));
+    int minX = std::max(0, std::min({ (int)a.x, (int)b.x, (int)c.x }));
+    int maxX = std::min(RENDER_WIDTH - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
+    int minY = std::max(0, std::min({ (int)a.y, (int)b.y, (int)c.y }));
+    int maxY = std::min(RENDER_HEIGHT - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
 
-    float u0w = uvx.x * invW.x,  v0w = uvx.y * invW.x;
-    float u1w = uvy.x * invW.y,  v1w = uvy.y * invW.y;
-    float u2w = uvz.x * invW.z,  v2w = uvz.y * invW.z;
+    float invArea = 1.0f / static_cast<float>(area);
+    float u0w = uvx.x * invW.x, v0w = uvx.y * invW.x;
+    float u1w = uvy.x * invW.y, v1w = uvy.y * invW.y;
+    float u2w = uvz.x * invW.z, v2w = uvz.y * invW.z;
 
-    Maths::Vec3f wn0 = model.TransformDirection(vN1);
-    Maths::Vec3f wn1 = model.TransformDirection(vN2);
-    Maths::Vec3f wn2 = model.TransformDirection(vN3);
+    uint32_t* fb = framebuffer.data();
+    float* zb = zbuffer.data();
 
     for (int y = minY; y <= maxY; y++)
     {
+        int rowOffset = y * RENDER_WIDTH;
         for (int x = minX; x <= maxX; x++)
         {
-            if (x < 0 || x >= RENDER_WIDTH || y < 0 || y >= RENDER_HEIGHT) continue;
-
-
-            Maths::Vec3f p = {(float)x, (float)y, 0.0f};
+            Maths::Vec3f p = { static_cast<float>(x), static_cast<float>(y), 0.0f };
             int w0 = edge(b, c, p);
             int w1 = edge(c, a, p);
             int w2 = edge(a, b, p);
+
             if ((w0 | w1 | w2) >= 0)
             {
-                float z = (w0 * a.z + w1 * b.z + w2 * c.z) / (float)area;
-                if (z < zbuffer[y * RENDER_WIDTH + x])
-                {
-                    float fw0 = (float)w0 / area;
-                    float fw1 = (float)w1 / area;
-                    float fw2 = (float)w2 / area;
-                    Maths::Vec3f N = Maths::Normalize(wn0 * fw0 + wn1 * fw1 + wn2 * fw2);
+                float z = (w0 * a.z + w1 * b.z + w2 * c.z) * invArea;
+                int idx = rowOffset + x;
 
+                if (z >= zb[idx]) continue;
 
-                    float brightness;
-                    computeBrightness(N, light.direction, light.ambient,  brightness);
-                    float uw = (w0 * u0w + w1 * u1w + w2 * u2w) / area;
-                    float vw = (w0 * v0w + w1 * v1w + w2 * v2w) / area;
-                    float iw = (w0 * invW.x + w1 * invW.y + w2 * invW.z) / area;
-                    float u = uw / iw;
-                    float v = vw / iw;
+                float fw0 = w0 * invArea;
+                float fw1 = w1 * invArea;
+                float fw2 = w2 * invArea;
 
+                float iw = fw0 * invW.x + fw1 * invW.y + fw2 * invW.z;
+                float invIw = 1.0f / iw;
 
-                    int tx = std::clamp((int)(u * texture.width),  0, texture.width  - 1);
-                    int ty = std::clamp((int)((1.0f - v) * texture.height), 0, texture.height - 1);
+                float u = (fw0 * u0w + fw1 * u1w + fw2 * u2w) * invIw;
+                float v = (fw0 * v0w + fw1 * v1w + fw2 * v2w) * invIw;
 
-                    uint32_t texel = texture.pixels[ty * texture.width + tx];
-                    uint8_t r = (uint8_t)(((texel >> 16) & 0xFF) * brightness);
-                    uint8_t g = (uint8_t)(((texel >>  8) & 0xFF) * brightness);
-                    uint8_t b = (uint8_t)(((texel >>  0) & 0xFF) * brightness);
-                    uint32_t color = (texel & 0xFF000000) | (r << 16) | (g << 8) | b;
+                Maths::Vec3f N = Maths::Normalize(wn0 * fw0 + wn1 * fw1 + wn2 * fw2);
 
+                float brightness;
+                computeBrightness(N, light.direction, light.ambient, brightness);
 
-                    zbuffer[y * RENDER_WIDTH + x] = z;
-                    put_pixel(x, y, color, framebuffer, RENDER_WIDTH, RENDER_HEIGHT);
-                }
+                uint32_t texel = texture.sampleBilinear(u, v);
+
+                uint8_t r = static_cast<uint8_t>(((texel >> 16) & 0xFF) * brightness);
+                uint8_t g = static_cast<uint8_t>(((texel >> 8) & 0xFF) * brightness);
+                uint8_t b = static_cast<uint8_t>((texel & 0xFF) * brightness);
+                uint32_t color = (texel & 0xFF000000) | (r << 16) | (g << 8) | b;
+
+                zb[idx] = z;
+                fb[idx] = color;
             }
         }
     }
