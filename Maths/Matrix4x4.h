@@ -394,15 +394,15 @@ namespace Maths
         T ys = 1.0f / std::tan(fovY * 0.5f);
         T xs = ys / aspect;
 
-        T alpha = farPlane /(nearPlane -farPlane);
-        T beta = (-farPlane * nearPlane)/ (nearPlane -farPlane) ;
+        T alpha = -(farPlane + nearPlane) / (farPlane - nearPlane);
+        T beta  = -2.0f * farPlane * nearPlane / (farPlane - nearPlane);
 
         Matrix4x4<T> result = Matrix4x4<T>::Zero();
         result.values[0][0] = xs;
         result.values[1][1] = ys;
         result.values[2][2] = alpha;
         result.values[2][3] = beta;
-        result.values[3][2] = 1.0f;
+        result.values[3][2] = -1.0f;
         return result;
     }
 

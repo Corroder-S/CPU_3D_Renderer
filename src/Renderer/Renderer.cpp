@@ -74,7 +74,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
             Maths::Vec3f c = { (float)sc2.x, (float)sc2.y, ndc2.z };
 
             int area = edge(a, b, c);
-            if (area >= 0) continue;
+            if (area <= 0) continue;
 
             drawTriangle(
                 a, b, c,
