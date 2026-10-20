@@ -16,7 +16,10 @@ FetchContent_MakeAvailable(SDL3)
 add_subdirectory(Maths)
 
 
-add_executable(cpu_renderer_sdl src/main.cpp
+add_executable(cpu_renderer_sdl
+        Editor/main.cpp
+        Editor/Application.cpp
+        Editor/Application.h
         src/Parsing/ObjLoader.cpp
         src/Platform/MemoryMappedFile.h
         src/Platform/MemoryMappedFile.cpp
