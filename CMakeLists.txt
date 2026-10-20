@@ -23,7 +23,14 @@ add_executable(cpu_renderer_sdl src/main.cpp
         src/Asset/Mesh.h
         src/Asset/Texture.cpp
         src/Asset/Light.h
-        src/Asset/Mesh.cpp "src/Renderer/clip.h")
+        src/Asset/Mesh.cpp "src/Renderer/clip.h"
+        src/Engine/Engine.cpp
+        src/Engine/Engine.h
+        src/Engine/Time.cpp
+        src/Engine/Time.h
+        src/Config.h
+        src/Renderer/Renderer.cpp
+        src/Renderer/Renderer.h)
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 
