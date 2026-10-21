@@ -52,25 +52,19 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     const Light& light)
 {
 
-
-
-
-
-
     int minX = std::max(0, std::min({ (int)a.x, (int)b.x, (int)c.x }));
     int maxX = std::min(RENDER_WIDTH - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
     int minY = std::max(0, std::min({ (int)a.y, (int)b.y, (int)c.y }));
     int maxY = std::min(RENDER_HEIGHT - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
 
     Maths::Vec3f minPos = { (float)minX, (float)minY, 0.0f };
-    // Triangles are CCW in screen space (standard OpenGL convention, clip.w > 0 for visible)
-    // w0 = weight for a, w1 = weight for b, w2 = weight for c
-    // CCW orientation: edge(b,c,p) + edge(c,a,p) + edge(a,b,p) = edge(b,c,a) > 0
+
     int w0_row = edge(b, c, minPos);
     int w1_row = edge(c, a, minPos);
     int w2_row = edge(a, b, minPos);
 
     int area = w0_row + w1_row + w2_row;
+    area = -area;
 
     float invArea = 1 / (float)area;
 
@@ -179,7 +173,6 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                 uint32_t resColor = ((texel >> 24) & 0xFF) << 24 | r << 16 | g << 8 | b;
 
                 framebuffer[idx] = resColor;
-
             }
 
             w0 += dw0_dx;

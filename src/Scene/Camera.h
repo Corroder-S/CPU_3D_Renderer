@@ -9,7 +9,7 @@ struct Camera
     Maths::Vec3f target   = { 0.0f, 0.0f, 0.0f };
     Maths::Vec3f up       = { 0.0f, 1.0f, 0.0f };
 
-    float fov   = 1.047f;
+    float fov   = 1.5708f;
     float nearZ = 0.1f;
     float farZ  = 100.0f;
 
