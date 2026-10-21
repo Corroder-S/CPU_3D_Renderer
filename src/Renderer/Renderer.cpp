@@ -36,7 +36,6 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
     m_clipPositions.resize(vertexCount);
     m_worldNormals.resize(vertexCount);
 
-    // 1. Transform vertices
     for (size_t i = 0; i < vertexCount; ++i)
     {
         m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
@@ -47,8 +46,10 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
     for (auto& f : mesh.faces)
     {
         ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x] };
-        ClipVertex v1 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y] };
-        ClipVertex v2 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z] };
+        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z] };
+        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y] };
+
+
 
         ClipVertex clipped[6];
         int numTris = clipTriangleNear(v0, v1, v2, clipped);

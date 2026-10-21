@@ -52,6 +52,7 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     const Light& light)
 {
 
+
     int minX = std::max(0, std::min({ (int)a.x, (int)b.x, (int)c.x }));
     int maxX = std::min(RENDER_WIDTH - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
     int minY = std::max(0, std::min({ (int)a.y, (int)b.y, (int)c.y }));
@@ -64,8 +65,6 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     int w2_row = edge(a, b, minPos);
 
     int area = w0_row + w1_row + w2_row;
-    area = -area;
-
     float invArea = 1 / (float)area;
 
 
