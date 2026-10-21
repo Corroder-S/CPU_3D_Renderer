@@ -2,7 +2,7 @@
 
 #include "Framebuffer.h"
 #include "Maths/Vec2.h"
-#include "../Asset/Texture.h"
+#include "Asset/Material.h"
 #include <cstdint>
 
 #include "Pipeline.h"
@@ -48,7 +48,7 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     Maths::Vec3f wn0, Maths::Vec3f wn1, Maths::Vec3f wn2,
     std::vector<uint32_t>& framebuffer,
     std::vector<float>& zbuffer,
-    const Texture& texture,
+    const Material& material,
     const Light& light)
 {
 
@@ -155,7 +155,17 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
                 float u = uw * inv_iw;
                 float v = vw * inv_iw;
 
-                uint32_t texel = texture.sampleBilinear(u, v);
+                Color baseColor = material.diffuse;
+                if (material.texture) {
+                    uint32_t texel = material.texture->sampleBilinear(u, v);
+
+                    float ta = ((texel >> 24) & 0xFF) / 255.0f;
+                    float tr = ((texel >> 16) & 0xFF) / 255.0f;
+                    float tg = ((texel >> 8) & 0xFF) / 255.0f;
+                    float tb = (texel & 0xFF) / 255.0f;
+
+                    baseColor = baseColor * Color(tr, tg, tb, ta);
+                }
 
 
                 Maths::Vec3f N = { nx, ny, nz };
@@ -166,12 +176,13 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
 
                 computeBrightness(N, light.direction, light.ambient, brightness);
 
-                uint8_t r = std::clamp<int>(((texel >> 16) & 0xFF) * brightness, 0, 255);
-                uint8_t g = std::clamp<int>(((texel >> 8)  & 0xFF) * brightness, 0, 255);
-                uint8_t b = std::clamp<int>((texel & 0xFF) * brightness, 0, 255);
-                uint32_t resColor = ((texel >> 24) & 0xFF) << 24 | r << 16 | g << 8 | b;
+                Color ambientPart = material.ambient * light.ambient;
+                Color diffusePart = baseColor * brightness;
+                Color finalColor = ambientPart + diffusePart;
 
-                framebuffer[idx] = resColor;
+                finalColor.a *= material.dissolve;
+
+                framebuffer[idx] = finalColor.toRGBA32();
             }
 
             w0 += dw0_dx;

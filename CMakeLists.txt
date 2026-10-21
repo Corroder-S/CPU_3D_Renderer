@@ -33,7 +33,7 @@ add_executable(cpu_renderer_sdl
         src/Engine/Time.h
         src/Config.h
         src/Renderer/Renderer.cpp
-        src/Renderer/Renderer.h)
+        src/Renderer/Renderer.h "src/Asset/Material.h" "src/Asset/Color.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 

@@ -19,16 +19,16 @@ void Renderer::renderScene(const Scene& scene)
 
     for (auto& obj : scene.objects)
     {
-        if (!obj.mesh || !obj.texture) continue;
+        if (!obj.mesh) continue;
 
         auto model = obj.transform.getModelMatrix();
         auto MVP = viewProj * model;
-        drawMesh(*obj.mesh, MVP, model, *obj.texture, scene.lights[0]);
+        drawMesh(*obj.mesh, MVP, model, obj.material, scene.lights[0]);
     }
 }
 
 void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
-                         const Maths::Matrix4x4<>& model, const Texture& texture,
+                         const Maths::Matrix4x4<>& model, const Material& material,
                          const Light& light)
 {
     size_t vertexCount = mesh.vertices.size();
@@ -82,7 +82,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
                 tv0.uv, tv1.uv, tv2.uv,
                 invW,
                 tv0.normal, tv1.normal, tv2.normal,
-                m_framebuffer, m_zBuffer, texture, light
+                m_framebuffer, m_zBuffer, material, light
             );
         }
     }

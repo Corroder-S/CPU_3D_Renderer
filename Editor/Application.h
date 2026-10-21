@@ -11,7 +11,7 @@ class Application : public Engine
 {
     Scene   m_scene;
     Mesh    m_mesh;
-    Texture m_texture;
+    std::shared_ptr<Texture> m_texture;
 
 public:
     void start() override;
