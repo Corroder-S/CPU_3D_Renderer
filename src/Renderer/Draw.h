@@ -49,14 +49,14 @@ static inline void drawTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
     std::vector<uint32_t>& framebuffer,
     std::vector<float>& zbuffer,
     const Texture& texture,
-    const Light& light)
+    const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax)
 {
 
 
-    int minX = std::max(0, std::min({ (int)a.x, (int)b.x, (int)c.x }));
-    int maxX = std::min(RENDER_WIDTH - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
-    int minY = std::max(0, std::min({ (int)a.y, (int)b.y, (int)c.y }));
-    int maxY = std::min(RENDER_HEIGHT - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
+    int minX = std::max(renderMin.x, std::min({ (int)a.x, (int)b.x, (int)c.x }));
+    int maxX = std::min(renderMax.x - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
+    int minY = std::max(renderMin.y, std::min({ (int)a.y, (int)b.y, (int)c.y }));
+    int maxY = std::min(renderMax.y - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
 
     Maths::Vec3f minPos = { (float)minX, (float)minY, 0.0f };
 

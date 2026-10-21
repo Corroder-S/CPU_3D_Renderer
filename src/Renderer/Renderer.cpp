@@ -5,17 +5,41 @@
 
 #include <algorithm>
 #include <limits>
+#include <thread>
+
+Renderer::~Renderer()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        m_workers[i].stop = true;
+        m_workers[i].cv.notify_one();
+        m_workers[i].thread.join();
+    }
+}
 
 void Renderer::init(uint32_t width, uint32_t height)
 {
     onResize(width, height);
+    m_workers[0].tileMin = {0,     0};      m_workers[0].tileMax = {int(width/2), int(height/2)};
+    m_workers[1].tileMin = {int(width/2), 0};      m_workers[1].tileMax = {int(width), int(height/2)};
+    m_workers[2].tileMin = {0,     int(height/2)};      m_workers[2].tileMax = {int(width/2), int(height)};
+    m_workers[3].tileMin = {int(width/2), int(height/2)};      m_workers[3].tileMax = {int(width), int(height)};
+
+    for (int i = 0; i < 4; i++)
+    {
+        m_workers[i].thread = std::thread(&Renderer::workerLoop, this, std::ref(m_workers[i]));
+    }
+
+
 }
 
 void Renderer::renderScene(const Scene& scene)
 {
+    m_screenTriangles.clear();
     auto view = scene.camera.getViewMatrix();
     auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
     auto viewProj = proj * view;
+
 
     for (auto& obj : scene.objects)
     {
@@ -23,13 +47,29 @@ void Renderer::renderScene(const Scene& scene)
 
         auto model = obj.transform.getModelMatrix();
         auto MVP = viewProj * model;
+
+
         drawMesh(*obj.mesh, MVP, model, *obj.texture, scene.lights[0]);
     }
+
+    for (int i = 0; i < 4; i++)
+    {
+        m_workers[i].hasWork = true;
+        m_workers[i].cv.notify_one();
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        while (m_workers[i].hasWork) {}
+    }
+
+
 }
 
+
 void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
-                         const Maths::Matrix4x4<>& model, const Texture& texture,
-                         const Light& light)
+                        const Maths::Matrix4x4<>& model, const Texture& texture,
+                        const Light& light)
 {
     size_t vertexCount = mesh.vertices.size();
 
@@ -42,13 +82,11 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
         m_worldNormals[i]  = model.TransformDirection(mesh.vertexNormals[i]);
     }
 
-    // 2. Per face: clip, NDC, viewport, cull, rasterize
     for (auto& f : mesh.faces)
     {
         ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x] };
         ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z] };
         ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y] };
-
 
 
         ClipVertex clipped[6];
@@ -74,16 +112,10 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
             Maths::Vec3f b = { (float)sc1.x, (float)sc1.y, ndc1.z };
             Maths::Vec3f c = { (float)sc2.x, (float)sc2.y, ndc2.z };
 
+
             int area = edge(a, b, c);
             if (area <= 0) continue;
-
-            drawTriangle(
-                a, b, c,
-                tv0.uv, tv1.uv, tv2.uv,
-                invW,
-                tv0.normal, tv1.normal, tv2.normal,
-                m_framebuffer, m_zBuffer, texture, light
-            );
+            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, &texture, &light });
         }
     }
 }
@@ -112,4 +144,26 @@ void Renderer::onResize(int32_t width, int32_t height)
     m_height = height;
     m_framebuffer.resize(width * height, 0xFF101018);
     m_zBuffer.resize(width * height, 1e30f);
+}
+
+void Renderer::workerLoop(Worker &w)
+{
+    while (true)
+    {
+        std::unique_lock<std::mutex> lock(w.mutex);
+        w.cv.wait(lock, [&] { return w.hasWork || w.stop; });
+
+        if (w.stop) break;
+
+        for (auto& tri : m_screenTriangles)
+        {
+            drawTriangle(tri.a, tri.b, tri.c,
+                tri.uv0, tri.uv1, tri.uv2,
+                tri.invW,
+                tri.n0, tri.n1, tri.n2,
+                m_framebuffer, m_zBuffer, *tri.texture, *tri.light, w.tileMin, w.tileMax);
+        }
+
+        w.hasWork = false;
+    }
 }
