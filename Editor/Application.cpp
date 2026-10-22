@@ -6,8 +6,8 @@
 
 void Application::start()
 {
-    m_mesh = LoadMesh(ASSETS_PATH "spot.obj");
-    m_texture.load(ASSETS_PATH "spot_texture.png");
+    m_mesh = LoadMesh(ASSETS_PATH "Luigi.obj");
+    m_texture.load(ASSETS_PATH "all_tx.png");
 
     // Center the mesh so rotation pivots around its geometric center
     Maths::Vec3f centroid = { 0, 0, 0 };
@@ -18,7 +18,7 @@ void Application::start()
     RenderObject spot;
     spot.mesh    = &m_mesh;
     spot.texture = &m_texture;
-    spot.transform.position = { 0.0f, 0.0f, 0.0f };
+    spot.transform.position = { 0.0f, 0.0f, -10.0f };
     m_scene.objects.push_back(spot);
 
     m_scene.lights.push_back(Light{});
