@@ -12,9 +12,9 @@ struct Material {
 
 	Color ambient = Color::White;
 	Color diffuse = Color::White;
-	Color secular = Color::White;
+	Color specular = Color::White;
 
-	float shininess = 32.0f;
+	float shininess = 2.0f;
 	float dissolve = 1.0f;
 
 	int illum = 1;

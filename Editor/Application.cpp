@@ -22,9 +22,11 @@ void Application::start()
     spot.mesh = &m_mesh;
     spot.material.texture = m_texture;
     spot.material.diffuse = Color::White;
-    spot.transform.position = { 0.0f, 0.0f, 0.0f };
+    spot.transform.position = { 0.0f, 0.0f, 1.0f };
 
     m_scene.objects.push_back(spot);
+
+
     m_scene.lights.push_back(Light{});
 
     m_scene.camera.position = { 0.0f, 0.0f, 3.0f };

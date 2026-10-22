@@ -8,6 +8,9 @@
 #include "Asset/Material.h"
 #include "Asset/Light.h"
 #include "Scene/Scene.h"
+#include "Clip.h"
+#include "Draw.h"
+#include "Pipeline.h"
 
 class Renderer
 {
@@ -16,9 +19,7 @@ public:
 
     void init(uint32_t width, uint32_t height);
     void renderScene(const Scene& scene);
-    void drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
-                  const Maths::Matrix4x4<>& model, const Material& material,
-                  const Light& light);
+    void drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms);
     void present(SDL_Texture* texture, SDL_Renderer* sdlRenderer);
     void clearFrameBuffer(uint32_t color);
     void clearDepthBuffer();
@@ -38,6 +39,7 @@ private:
     // Buffers de travail réutilisés chaque frame
     std::vector<Maths::Vec4f> m_clipPositions;
     std::vector<Maths::Vec3f> m_worldNormals;
+    std::vector<Maths::Vec3f> m_worldPositions;
 
     void onResize(int32_t width, int32_t height);
 };

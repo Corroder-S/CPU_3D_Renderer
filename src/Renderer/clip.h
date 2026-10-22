@@ -8,9 +8,10 @@ struct ClipVertex {
     Maths::Vec4f clip;
     Maths::Vec2f uv;
     Maths::Vec3f normal;
+    Maths::Vec3f worldPos;
 
     static ClipVertex lerp(const ClipVertex& a, const ClipVertex& b, float t){
-        return {a.clip + (b.clip - a.clip) * t,a.uv + (b.uv - a.uv) * t,a.normal + (b.normal - a.normal) * t};
+        return { a.clip + (b.clip - a.clip) * t, a.uv + (b.uv - a.uv) * t, a.normal + (b.normal - a.normal) * t, a.worldPos + (b.worldPos - a.worldPos) * t};
     }
 
     float nearDistance() const{
