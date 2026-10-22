@@ -4,6 +4,7 @@
 #include <vector>
 #include "Maths/Vec2.h"
 #include "Maths/Vec3.h"
+#include "Material.h"
 
 struct face {
     Maths::Vec3i v;
@@ -19,4 +20,5 @@ struct Mesh {
 };
 
 
+Mesh LoadMesh(const char* path, Material& material);
 Mesh LoadMesh(const char* path);

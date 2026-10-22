@@ -4,7 +4,7 @@
 
 #include "Parsing/ObjLoader.h"
 
-Mesh LoadMesh(const char* path)
+Mesh LoadMesh(const char* path, Material& material)
 {
     Mesh mesh;
 
@@ -13,7 +13,7 @@ Mesh LoadMesh(const char* path)
     // ext = ".obj"
     if (ext == ".obj")
     {
-        LoadObj(path, mesh.vertices, mesh.uvs, mesh.faces);
+        LoadObj(path, mesh.vertices, mesh.uvs, mesh.faces, material);
     }
 
 
@@ -54,4 +54,9 @@ Mesh LoadMesh(const char* path)
     }
 
     return mesh;
+}
+
+Mesh LoadMesh(const char* path)
+{
+    return LoadMesh(path);
 }

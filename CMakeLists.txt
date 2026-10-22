@@ -21,6 +21,7 @@ add_executable(cpu_renderer_sdl
         Editor/Application.cpp
         Editor/Application.h
         src/Parsing/ObjLoader.cpp
+        src/Parsing/MtlLoader.cpp
         src/Platform/MemoryMappedFile.h
         src/Platform/MemoryMappedFile.cpp
         src/Asset/Mesh.h
@@ -31,9 +32,8 @@ add_executable(cpu_renderer_sdl
         src/Engine/Engine.h
         src/Engine/Time.cpp
         src/Engine/Time.h
-        src/Config.h
         src/Renderer/Renderer.cpp
-        src/Renderer/Renderer.h "src/Asset/Material.h" "src/Asset/Color.h" "src/Renderer/Shader.h")
+        src/Renderer/Renderer.h "src/Asset/Material.h" "src/Asset/Color.h" "src/Renderer/Shader.h" "src/Parsing/MtlLoader.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
 

@@ -4,28 +4,26 @@
 
 #include "Application.h"
 
-#include "Application.h"
 
 void Application::start()
 {
-    m_mesh = LoadMesh(ASSETS_PATH "spot.obj");
+    RenderObject spot;
 
-    m_texture = std::make_shared<Texture>();
-    m_texture->load(ASSETS_PATH "spot_texture.png");
+    m_mesh = LoadMesh(ASSETS_PATH "Car1.obj", spot.material);
 
     Maths::Vec3f centroid = { 0, 0, 0 };
     for (auto& v : m_mesh.vertices) centroid = centroid + v;
     centroid = centroid * (1.0f / (float)m_mesh.vertices.size());
     for (auto& v : m_mesh.vertices) v = v - centroid;
 
-    RenderObject spot;
     spot.mesh = &m_mesh;
-    spot.material.texture = m_texture;
-    spot.material.diffuse = Color::White;
-    spot.transform.position = { 0.0f, 0.0f, 1.0f };
 
+    if (!spot.material.texture) {
+        spot.material.texture = m_texture;
+    }
+
+    spot.transform.position = { 0.0f, 0.0f, -5.0f };
     m_scene.objects.push_back(spot);
-
 
     m_scene.lights.push_back(Light{});
 
