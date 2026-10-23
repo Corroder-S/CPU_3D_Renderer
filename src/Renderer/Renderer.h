@@ -30,7 +30,8 @@ struct ScreenTriangle {
     Maths::Vec2f uv0, uv1, uv2;
     Maths::Vec3f invW;
     Maths::Vec3f n0, n1, n2;
-    const Texture* texture;
+	Maths::Vec3f wp0, wp1, wp2;
+	const ShaderUniforms* uniforms;
     const Light* light;
 };
 

@@ -116,7 +116,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Ma
             int area = edge(a, b, c);
             if (area <= 0) continue;
 
-            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, tv0.worldPos, tv1.worldPos, tv2.worldPos, uniforms, &light });
+            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, tv0.worldPos, tv1.worldPos, tv2.worldPos, &uniforms, &light });
 
         }
     }
@@ -163,7 +163,8 @@ void Renderer::workerLoop(Worker &w)
                 tri.uv0, tri.uv1, tri.uv2,
                 tri.invW,
                 tri.n0, tri.n1, tri.n2,
-                m_framebuffer, m_zBuffer, *tri.texture, *tri.light, w.tileMin, w.tileMax);
+				tri.wp0, tri.wp1, tri.wp2,
+                m_framebuffer, m_zBuffer, *tri.uniforms, *tri.light, w.tileMin, w.tileMax);
         }
 
         w.hasWork = false;
