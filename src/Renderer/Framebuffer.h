@@ -2,9 +2,9 @@
 
 #include <vector>
 #include <cstdint>
+#include "Engine/Config.h"
 
-constexpr int RENDER_WIDTH  = 1280;
-constexpr int RENDER_HEIGHT = 800;
+
 
 
 static inline uint32_t rgb(uint8_t r, uint8_t g, uint8_t b)

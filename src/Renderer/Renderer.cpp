@@ -1,7 +1,5 @@
 #include "Renderer.h"
-#include "Clip.h"
-#include "Draw.h"
-#include "Pipeline.h"
+
 
 #include <algorithm>
 #include <limits>
@@ -43,13 +41,15 @@ void Renderer::renderScene(const Scene& scene)
 
     for (auto& obj : scene.objects)
     {
-        if (!obj.mesh || !obj.texture) continue;
+        if (!obj.mesh) continue;
 
         auto model = obj.transform.getModelMatrix();
         auto MVP = viewProj * model;
 
+        ShaderUniforms uniforms{ obj.material, scene.lights[0], scene.camera.position };
 
-        drawMesh(*obj.mesh, MVP, model, *obj.texture, scene.lights[0]);
+
+        drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0]);
     }
 
     for (int i = 0; i < 4; i++)
@@ -66,28 +66,28 @@ void Renderer::renderScene(const Scene& scene)
 
 }
 
-
-void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
-                        const Maths::Matrix4x4<>& model, const Texture& texture,
-                        const Light& light)
+void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms, const Light& light)
 {
     size_t vertexCount = mesh.vertices.size();
 
     m_clipPositions.resize(vertexCount);
     m_worldNormals.resize(vertexCount);
+    m_worldPositions.resize(vertexCount);
 
     for (size_t i = 0; i < vertexCount; ++i)
     {
         m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
         m_worldNormals[i]  = model.TransformDirection(mesh.vertexNormals[i]);
+
+        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
     }
 
     for (auto& f : mesh.faces)
     {
-        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x] };
-        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z] };
-        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y] };
-
+        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x], m_worldPositions[f.v.x] };
+        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z], m_worldPositions[f.v.z] };
+        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y], m_worldPositions[f.v.y] };
 
         ClipVertex clipped[6];
         int numTris = clipTriangleNear(v0, v1, v2, clipped);
@@ -115,7 +115,9 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
 
             int area = edge(a, b, c);
             if (area <= 0) continue;
-            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, &texture, &light });
+
+            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, tv0.worldPos, tv1.worldPos, tv2.worldPos, uniforms, &light });
+
         }
     }
 }

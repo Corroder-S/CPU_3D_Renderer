@@ -4,27 +4,31 @@
 
 #include "Application.h"
 
+
 void Application::start()
 {
-    m_mesh = LoadMesh(ASSETS_PATH "Luigi.obj");
-    m_texture.load(ASSETS_PATH "all_tx.png");
+    RenderObject spot;
 
-    // Center the mesh so rotation pivots around its geometric center
+    m_mesh = LoadMesh(ASSETS_PATH "Car1.obj", spot.material);
+
     Maths::Vec3f centroid = { 0, 0, 0 };
     for (auto& v : m_mesh.vertices) centroid = centroid + v;
     centroid = centroid * (1.0f / (float)m_mesh.vertices.size());
     for (auto& v : m_mesh.vertices) v = v - centroid;
 
-    RenderObject spot;
-    spot.mesh    = &m_mesh;
-    spot.texture = &m_texture;
-    spot.transform.position = { 0.0f, 0.0f, -10.0f };
+    spot.mesh = &m_mesh;
+
+    if (!spot.material.texture) {
+        spot.material.texture = m_texture;
+    }
+
+    spot.transform.position = { 0.0f, 0.0f, -5.0f };
     m_scene.objects.push_back(spot);
 
     m_scene.lights.push_back(Light{});
 
     m_scene.camera.position = { 0.0f, 0.0f, 3.0f };
-    m_scene.camera.target   = { 0.0f, 0.0f, 0.0f };
+    m_scene.camera.target = { 0.0f, 0.0f, 0.0f };
 }
 
 void Application::update()

@@ -1,5 +1,9 @@
 ﻿#include "ObjLoader.h"
 #include "Platform/MemoryMappedFile.h"
+#include "MtlLoader.h"
+
+#include <cstring>
+#include <string>
 
 
 
@@ -48,6 +52,82 @@ bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vect
             int t3 = std::strtol(p, (char**)&p, 10) - 1;
 
             outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
+        }
+        while (data < end && *data != '\n') data++;
+        data++;
+    }
+
+    return true;
+
+}
+
+
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces, Material& material)
+{
+    MappedFile file(path);
+    if (!file.IsOpen()) return false;
+    const char* data = file.Data();
+    const char* end = data + file.Size();
+
+    while (data < end)
+    {
+        if (data[0] == 'v' && data[1] == ' ')
+        {
+            const char* p = data + 2;
+            float x = std::strtof(p, (char**)&p);
+            float y = std::strtof(p, (char**)&p);
+            float z = std::strtof(p, (char**)&p);
+            outVertices.push_back(Maths::Vec3f(x, y, z));
+        }
+        else if (data[0] == 'v' && data[1] == 't' && data[2] == ' ')
+        {
+            const char* p = data + 3;
+            float x = std::strtof(p, (char**)&p);
+            float y = std::strtof(p, (char**)&p);
+            outuvs.push_back(Maths::Vec2f(x, y));
+        }
+        else if (data[0] == 'f' && data[1] == ' ')
+        {
+            const char* p = data + 2;
+
+            int v1 = std::strtol(p, (char**)&p, 10) - 1;
+            if (*p == '/') p++;
+            int t1 = std::strtol(p, (char**)&p, 10) - 1;
+            while (*p && *p != ' ' && *p != '\n') p++;
+            while (*p == ' ') p++;
+
+            int v2 = std::strtol(p, (char**)&p, 10) - 1;
+            if (*p == '/') p++;
+            int t2 = std::strtol(p, (char**)&p, 10) - 1;
+            while (*p && *p != ' ' && *p != '\n') p++;
+            while (*p == ' ') p++;
+
+            int v3 = std::strtol(p, (char**)&p, 10) - 1;
+            if (*p == '/') p++;
+            int t3 = std::strtol(p, (char**)&p, 10) - 1;
+
+            outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
+        }
+        else if (std::strncmp(data, "mtllib ", 7) == 0)
+        {
+            const char* p = data + 7;
+            while (*p == ' ') p++;
+
+            const char* startFilename = p;
+            while (p < end && *p != '\r' && *p != '\n' && *p != ' ') p++;
+
+            std::string mtlFilename(startFilename, p - startFilename);
+
+            std::string objPathStr(path);
+            size_t lastSlash = objPathStr.find_last_of("/\\");
+            std::string baseDir = (lastSlash != std::string::npos) ? objPathStr.substr(0, lastSlash) : "";
+            std::string mtlPath = baseDir.empty() ? mtlFilename : baseDir + "/" + mtlFilename;
+
+            auto materials = MtlLoader::load(mtlPath, baseDir);
+            if (!materials.empty())
+            {
+                material = materials.begin()->second;
+            }
         }
         while (data < end && *data != '\n') data++;
         data++;
