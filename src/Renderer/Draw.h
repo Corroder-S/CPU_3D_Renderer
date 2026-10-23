@@ -53,7 +53,8 @@ static inline void drawTriangle(
     std::vector<uint32_t>& framebuffer,
     std::vector<float>& zbuffer,
     const ShaderUniforms& uniforms,
-    const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax)
+    const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax,
+    bool writeDepth = true)
 {
 
 
@@ -142,7 +143,6 @@ static inline void drawTriangle(
         {
             if ((w0 | w1 | w2) >= 0 && z <= zbuffer[idx])
             {
-                zbuffer[idx] = z;
                 float inv_iw = 1.0f / iw;
 
                 FragmentInput frag;
@@ -150,9 +150,35 @@ static inline void drawTriangle(
                 frag.normal = { nx, ny, nz };
                 frag.worldPos = { pxw * inv_iw, pyw * inv_iw, pzw * inv_iw };
 
-                Color pixelColor = evaluateBlinnPhong(frag, uniforms);
+                Color color = evaluateBlinnPhong(frag, uniforms);
 
-                framebuffer[idx] = pixelColor.toRGBA32();
+                if (color.a < 1.0f)
+                {
+                    uint32_t dst = framebuffer[idx];
+                    uint8_t dr = (dst >> 16) & 0xFF;
+                    uint8_t dg = (dst >> 8) & 0xFF;
+                    uint8_t db = dst & 0xFF;
+
+                    uint8_t sr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
+                    uint8_t sg = static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f));
+                    uint8_t sb = static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f));
+                    float a = color.a;
+
+                    uint8_t outR = static_cast<uint8_t>(sr * a + dr * (1.0f - a));
+                    uint8_t outG = static_cast<uint8_t>(sg * a + dg * (1.0f - a));
+                    uint8_t outB = static_cast<uint8_t>(sb * a + db * (1.0f - a));
+
+                    framebuffer[idx] = (0xFFu << 24) | (outR << 16) | (outG << 8) | outB;
+                }
+                else
+                {
+                    framebuffer[idx] = color.toRGBA32();
+                }
+
+                if (writeDepth)
+                {
+                    zbuffer[idx] = z;
+                }
             }
 
             w0 += dw0_dx; w1 += dw1_dx; w2 += dw2_dx;

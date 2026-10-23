@@ -15,17 +15,19 @@ struct FragmentInput {
 };
 
 struct ShaderUniforms {
-    const Material& material;
-    const Light& light;
+    const Material* material = nullptr;
+    const Light* light = nullptr;
     Maths::Vec3f    cameraPos;
 };
 
 inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u)
 {
-    Color albedo = u.material.diffuse;
+    if (!u.material || !u.light) return Color::White;
 
-    if (u.material.texture) {
-        uint32_t texel = u.material.texture->sampleBilinear(in.uv.x, in.uv.y);
+    Color albedo = u.material->diffuse;
+
+    if (u.material->texture) {
+        uint32_t texel = u.material->texture->sampleBilinear(in.uv.x, in.uv.y);
         float ta = ((texel >> 24) & 0xFF) / 255.0f;
         float tr = ((texel >> 16) & 0xFF) / 255.0f;
         float tg = ((texel >> 8) & 0xFF) / 255.0f;
@@ -34,9 +36,9 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     }
 
     Maths::Vec3f N = Maths::Normalize(in.normal);
-    Maths::Vec3f L = Maths::Normalize(u.light.direction);
+    Maths::Vec3f L = Maths::Normalize(u.light->direction);
 
-    Color ambient = albedo * (u.material.ambient * u.light.ambient);
+    Color ambient = albedo * (u.material->ambient * u.light->ambient);
 
     float NdotL = std::max(0.0f, Maths::Dot(N, L));
     Color diffuse = albedo * NdotL;
@@ -47,11 +49,14 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
         Maths::Vec3f V = Maths::Normalize(u.cameraPos - in.worldPos);
         Maths::Vec3f H = Maths::Normalize(L + V);
         float NdotH = std::max(0.0f, Maths::Dot(N, H));
-        float specFactor = std::pow(NdotH, u.material.shininess);
-        specular = u.material.specular * specFactor;
+        float specFactor = std::pow(NdotH, u.material->shininess);
+        specular = u.material->specular * specFactor;
     }
 
     Color finalColor = ambient + diffuse + specular;
-    finalColor.a *= u.material.dissolve;
+
+    float alpha = albedo.a * u.material->dissolve;
+    finalColor.a = std::clamp(alpha, 0.0f, 1.0f);
+
     return finalColor;
 }

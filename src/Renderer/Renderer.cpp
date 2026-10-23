@@ -1,6 +1,4 @@
 #include "Renderer.h"
-
-
 #include <algorithm>
 #include <limits>
 #include <thread>
@@ -18,26 +16,27 @@ Renderer::~Renderer()
 void Renderer::init(uint32_t width, uint32_t height)
 {
     onResize(width, height);
-    m_workers[0].tileMin = {0,     0};      m_workers[0].tileMax = {int(width/2), int(height/2)};
-    m_workers[1].tileMin = {int(width/2), 0};      m_workers[1].tileMax = {int(width), int(height/2)};
-    m_workers[2].tileMin = {0,     int(height/2)};      m_workers[2].tileMax = {int(width/2), int(height)};
-    m_workers[3].tileMin = {int(width/2), int(height/2)};      m_workers[3].tileMax = {int(width), int(height)};
+    m_workers[0].tileMin = { 0,            0 };            m_workers[0].tileMax = { int(width / 2), int(height / 2) };
+    m_workers[1].tileMin = { int(width / 2), 0 };            m_workers[1].tileMax = { int(width),   int(height / 2) };
+    m_workers[2].tileMin = { 0,            int(height / 2) }; m_workers[2].tileMax = { int(width / 2), int(height) };
+    m_workers[3].tileMin = { int(width / 2), int(height / 2) }; m_workers[3].tileMax = { int(width),   int(height) };
 
     for (int i = 0; i < 4; i++)
     {
         m_workers[i].thread = std::thread(&Renderer::workerLoop, this, std::ref(m_workers[i]));
     }
-
-
 }
 
 void Renderer::renderScene(const Scene& scene)
 {
     m_screenTriangles.clear();
+
     auto view = scene.camera.getViewMatrix();
     auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
     auto viewProj = proj * view;
 
+    std::vector<ScreenTriangle> opaqueTriangles;
+    std::vector<ScreenTriangle> transparentTriangles;
 
     for (auto& obj : scene.objects)
     {
@@ -46,27 +45,51 @@ void Renderer::renderScene(const Scene& scene)
         auto model = obj.transform.getModelMatrix();
         auto MVP = viewProj * model;
 
-        ShaderUniforms uniforms{ obj.material, scene.lights[0], scene.camera.position };
+        ShaderUniforms uniforms{ &obj.material, &scene.lights[0], scene.camera.position };
 
+        bool isTransparent = (obj.material.dissolve < 1.0f);
+        auto& targetList = isTransparent ? transparentTriangles : opaqueTriangles;
 
-        drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0]);
+        drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0], isTransparent, targetList);
     }
 
-    for (int i = 0; i < 4; i++)
+    // PASSE 1 : OPAQUE
+    if (!opaqueTriangles.empty())
     {
-        m_workers[i].hasWork = true;
-        m_workers[i].cv.notify_one();
+        m_screenTriangles = std::move(opaqueTriangles);
+
+        for (int i = 0; i < 4; i++) {
+            m_workers[i].hasWork = true;
+            m_workers[i].cv.notify_one();
+        }
+        for (int i = 0; i < 4; i++) {
+            while (m_workers[i].hasWork) {}
+        }
     }
 
-    for (int i = 0; i < 4; i++)
+    // PASSE 2 : TRANSPARENTE (Back-to-Front)
+    if (!transparentTriangles.empty())
     {
-        while (m_workers[i].hasWork) {}
+        std::sort(transparentTriangles.begin(), transparentTriangles.end(),
+            [](const ScreenTriangle& t1, const ScreenTriangle& t2) {
+                return t1.avgZ > t2.avgZ;
+            });
+
+        m_screenTriangles = std::move(transparentTriangles);
+
+        for (int i = 0; i < 4; i++) {
+            m_workers[i].hasWork = true;
+            m_workers[i].cv.notify_one();
+        }
+        for (int i = 0; i < 4; i++) {
+            while (m_workers[i].hasWork) {}
+        }
     }
-
-
 }
 
-void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms, const Light& light)
+void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
+    const ShaderUniforms& uniforms, const Light& light,
+    bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
 {
     size_t vertexCount = mesh.vertices.size();
 
@@ -77,7 +100,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Ma
     for (size_t i = 0; i < vertexCount; ++i)
     {
         m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
-        m_worldNormals[i]  = model.TransformDirection(mesh.vertexNormals[i]);
+        m_worldNormals[i] = model.TransformDirection(mesh.vertexNormals[i]);
 
         Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
         m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
@@ -85,6 +108,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Ma
 
     for (auto& f : mesh.faces)
     {
+        // Rétablissement de l'ordre d'origine de ton moteur (x, z, y)
         ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x], m_worldPositions[f.v.x] };
         ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z], m_worldPositions[f.v.z] };
         ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y], m_worldPositions[f.v.y] };
@@ -112,19 +136,29 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Ma
             Maths::Vec3f b = { (float)sc1.x, (float)sc1.y, ndc1.z };
             Maths::Vec3f c = { (float)sc2.x, (float)sc2.y, ndc2.z };
 
-
             int area = edge(a, b, c);
             if (area <= 0) continue;
 
-            m_screenTriangles.push_back({ a, b, c, tv0.uv, tv1.uv, tv2.uv, invW, tv0.normal, tv1.normal, tv2.normal, tv0.worldPos, tv1.worldPos, tv2.worldPos, &uniforms, &light });
+            ScreenTriangle tri;
+            tri.a = a; tri.b = b; tri.c = c;
+            tri.uv0 = tv0.uv; tri.uv1 = tv1.uv; tri.uv2 = tv2.uv;
+            tri.invW = invW;
+            tri.n0 = tv0.normal; tri.n1 = tv1.normal; tri.n2 = tv2.normal;
+            tri.wp0 = tv0.worldPos; tri.wp1 = tv1.worldPos; tri.wp2 = tv2.worldPos;
+            tri.uniforms = uniforms; // Copie sécurisée
+            tri.light = &light;
 
+            tri.avgZ = (a.z + b.z + c.z) / 3.0f;
+            tri.writeDepth = !isTransparent;
+
+            outTriangles.push_back(tri);
         }
     }
 }
 
 void Renderer::drawText(const Font& font, const std::string& text, int x, int y, const Color& color)
 {
-	::drawText(font, text, x, y, color, m_framebuffer, m_width, m_height);
+    ::drawText(font, text, x, y, color, m_framebuffer, m_width, m_height);
 }
 
 void Renderer::present(SDL_Texture* texture, SDL_Renderer* sdlRenderer)
@@ -153,7 +187,7 @@ void Renderer::onResize(int32_t width, int32_t height)
     m_zBuffer.resize(width * height, 1e30f);
 }
 
-void Renderer::workerLoop(Worker &w)
+void Renderer::workerLoop(Worker& w)
 {
     while (true)
     {
@@ -164,12 +198,18 @@ void Renderer::workerLoop(Worker &w)
 
         for (auto& tri : m_screenTriangles)
         {
-            drawTriangle(tri.a, tri.b, tri.c,
+            drawTriangle(
+                tri.a, tri.b, tri.c,
                 tri.uv0, tri.uv1, tri.uv2,
                 tri.invW,
                 tri.n0, tri.n1, tri.n2,
-				tri.wp0, tri.wp1, tri.wp2,
-                m_framebuffer, m_zBuffer, *tri.uniforms, *tri.light, w.tileMin, w.tileMax);
+                tri.wp0, tri.wp1, tri.wp2,
+                m_framebuffer, m_zBuffer,
+                tri.uniforms,
+                *tri.light,
+                w.tileMin, w.tileMax,
+                tri.writeDepth
+            );
         }
 
         w.hasWork = false;

@@ -14,23 +14,25 @@ void Application::start()
         SDL_Log("Erreur lors du chargement de la police !");
     }
 
-    m_mesh = LoadMesh(ASSETS_PATH "Car1.obj", spot.material);
+    Material loadedMaterial;
+    m_mesh = LoadMesh(ASSETS_PATH "Car1.obj", loadedMaterial);
 
-    Maths::Vec3f centroid = { 0, 0, 0 };
-    for (auto& v : m_mesh.vertices) centroid = centroid + v;
-    centroid = centroid * (1.0f / (float)m_mesh.vertices.size());
-    for (auto& v : m_mesh.vertices) v = v - centroid;
+    RenderObject carOpaque;
+    carOpaque.mesh = &m_mesh;
+    carOpaque.material = loadedMaterial;
+    carOpaque.material.dissolve = 1.0f;
+    carOpaque.transform.position = { -1.0f, 0.0f, -10.0f };
+    m_scene.objects.push_back(carOpaque);
 
-    spot.mesh = &m_mesh;
-
-    if (!spot.material.texture) {
-        spot.material.texture = m_texture;
-    }
-
-    spot.transform.position = { 0.0f, 0.0f, -5.0f };
-    m_scene.objects.push_back(spot);
+    RenderObject carTransp;
+    carTransp.mesh = &m_mesh;
+    carTransp.material = loadedMaterial;
+    carTransp.material.dissolve = 0.5f;
+    carTransp.transform.position = { 0.0f, 0.0f, -5.0f };
+    m_scene.objects.push_back(carTransp);
 
     m_scene.lights.push_back(Light{});
+    m_scene.camera.position = { 0.0f, 0.0f, 0.0f };
 
     m_scene.camera.position = { 0.0f, 0.0f, 3.0f };
     m_scene.camera.target = { 0.0f, 0.0f, 0.0f };
@@ -39,7 +41,7 @@ void Application::start()
 void Application::update()
 {
     float dt = Time::deltaTime();
-    m_scene.objects[0].transform.rotation.y += dt;
+    m_scene.objects[1].transform.rotation.y += dt;
 
     m_renderer.renderScene(m_scene);
 
