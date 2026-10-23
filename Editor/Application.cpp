@@ -3,11 +3,16 @@
 //
 
 #include "Application.h"
+#include "Engine/Time.h"
 
 
 void Application::start()
 {
     RenderObject spot;
+
+    if (!m_font.load(ASSETS_PATH "fonts/Paladins.ttf", 20.0f)) {
+        SDL_Log("Erreur lors du chargement de la police !");
+    }
 
     m_mesh = LoadMesh(ASSETS_PATH "Car1.obj", spot.material);
 
@@ -33,8 +38,13 @@ void Application::start()
 
 void Application::update()
 {
-    float t = SDL_GetTicks() / 1000.0f;
-    m_scene.objects[0].transform.rotation.y = t;
+    float dt = Time::deltaTime();
+    m_scene.objects[0].transform.rotation.y += dt;
 
     m_renderer.renderScene(m_scene);
+
+
+    int fps = (dt > 0.0f) ? static_cast<int>(1.0f / dt) : 0;
+    m_renderer.drawText(m_font, "FPS: " + std::to_string(fps), 15, 15, Color::Green);
+    m_renderer.drawText(m_font, "Les tenebres", 15, 40, Color::White);
 }

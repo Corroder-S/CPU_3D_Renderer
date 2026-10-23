@@ -10,6 +10,7 @@
 #include "Maths/Vec2.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
+#include "Asset/Font.h"
 
 
 
@@ -41,8 +42,6 @@ static inline int edge_dxdy(int a, int b)
 {
     return (int) (a - b);
 }
-
-
 
 
 static inline void drawTriangle(
@@ -173,3 +172,73 @@ static inline void drawTriangle(
         w0_row += dw0_dy; w1_row += dw1_dy; w2_row += dw2_dy;
     }
 }
+
+static inline void drawText(
+    const Font& font,
+    const std::string& text,
+    int posX, int posY,
+    const Color& color,
+    std::vector<uint32_t>& framebuffer,
+    int fbWidth, int fbHeight)
+{
+    const auto& alphaAtlas = font.getAtlasAlpha();
+    int atlasW = font.getAtlasWidth();
+    int atlasH = font.getAtlasHeight();
+    if (alphaAtlas.empty()) return;
+
+    uint8_t cr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
+    uint8_t cg = static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f));
+    uint8_t cb = static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f));
+    uint8_t ca = static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f));
+
+    float curX = static_cast<float>(posX);
+    float curY = static_cast<float>(posY + font.getFontSize()); // Alignement sur la ligne de base
+
+    for (char c : text) {
+        if (c == '\n') {
+            curX = static_cast<float>(posX);
+            curY += font.getFontSize();
+            continue;
+        }
+
+        GlyphQuad q;
+        font.getBakedQuad(c, curX, curY, q);
+
+        int w = q.x1 - q.x0;
+        int h = q.y1 - q.y0;
+
+        for (int dy = 0; dy < h; ++dy) {
+            int screenY = q.y0 + dy;
+            if (screenY < 0 || screenY >= fbHeight) continue;
+
+            float v = q.t0 + (q.t1 - q.t0) * (static_cast<float>(dy) / h);
+            int texY = static_cast<int>(v * atlasH);
+
+            for (int dx = 0; dx < w; ++dx) {
+                int screenX = q.x0 + dx;
+                if (screenX < 0 || screenX >= fbWidth) continue;
+
+                float u = q.s0 + (q.s1 - q.s0) * (static_cast<float>(dx) / w);
+                int texX = static_cast<int>(u * atlasW);
+
+                uint8_t alpha = alphaAtlas[texY * atlasW + texX];
+                if (alpha == 0) continue;
+
+                float finalAlpha = (alpha / 255.0f) * (ca / 255.0f);
+                int dstIdx = screenY * fbWidth + screenX;
+                uint32_t dstColor = framebuffer[dstIdx];
+
+                uint8_t dr = (dstColor >> 16) & 0xFF;
+                uint8_t dg = (dstColor >> 8)  & 0xFF;
+                uint8_t db =  dstColor        & 0xFF;
+
+                uint8_t outR = static_cast<uint8_t>(cr * finalAlpha + dr * (1.0f - finalAlpha));
+                uint8_t outG = static_cast<uint8_t>(cg * finalAlpha + dg * (1.0f - finalAlpha));
+                uint8_t outB = static_cast<uint8_t>(cb * finalAlpha + db * (1.0f - finalAlpha));
+
+                framebuffer[dstIdx] = (0xFFu << 24) | (outR << 16) | (outG << 8) | outB;
+            }
+        }
+    }
+}
+

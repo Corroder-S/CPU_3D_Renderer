@@ -48,6 +48,7 @@ public:
     void drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
                   const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
                   const Light& light);
+    void drawText(const Font& font, const std::string& text, int x, int y, const Color& color);
     void present(SDL_Texture* texture, SDL_Renderer* sdlRenderer);
     void clearFrameBuffer(uint32_t color);
     void clearDepthBuffer();

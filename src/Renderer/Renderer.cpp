@@ -122,6 +122,11 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,const Ma
     }
 }
 
+void Renderer::drawText(const Font& font, const std::string& text, int x, int y, const Color& color)
+{
+	::drawText(font, text, x, y, color, m_framebuffer, m_width, m_height);
+}
+
 void Renderer::present(SDL_Texture* texture, SDL_Renderer* sdlRenderer)
 {
     SDL_UpdateTexture(texture, nullptr, m_framebuffer.data(), m_width * sizeof(uint32_t));
