@@ -53,7 +53,6 @@ void Renderer::renderScene(const Scene& scene)
         drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0], isTransparent, targetList);
     }
 
-    // PASSE 1 : OPAQUE
     if (!opaqueTriangles.empty())
     {
         m_screenTriangles = std::move(opaqueTriangles);
@@ -67,7 +66,6 @@ void Renderer::renderScene(const Scene& scene)
         }
     }
 
-    // PASSE 2 : TRANSPARENTE (Back-to-Front)
     if (!transparentTriangles.empty())
     {
         std::sort(transparentTriangles.begin(), transparentTriangles.end(),
@@ -108,7 +106,6 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
 
     for (auto& f : mesh.faces)
     {
-        // Rétablissement de l'ordre d'origine de ton moteur (x, z, y)
         ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x], m_worldPositions[f.v.x] };
         ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z], m_worldPositions[f.v.z] };
         ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y], m_worldPositions[f.v.y] };
@@ -145,7 +142,7 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
             tri.invW = invW;
             tri.n0 = tv0.normal; tri.n1 = tv1.normal; tri.n2 = tv2.normal;
             tri.wp0 = tv0.worldPos; tri.wp1 = tv1.worldPos; tri.wp2 = tv2.worldPos;
-            tri.uniforms = uniforms; // Copie sécurisée
+            tri.uniforms = uniforms; // Copie sï¿½curisï¿½e
             tri.light = &light;
 
             tri.avgZ = (a.z + b.z + c.z) / 3.0f;
@@ -159,6 +156,44 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
 void Renderer::drawText(const Font& font, const std::string& text, int x, int y, const Color& color)
 {
     ::drawText(font, text, x, y, color, m_framebuffer, m_width, m_height);
+}
+
+void Renderer::drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<> &viewProj)
+{
+    Maths::Vec4f clipped = { particle.position.x, particle.position.y, particle.position.z, 1.0f };
+    clipped = viewProj * clipped;
+    if (clipped.w > 0.0f)
+    {
+        float ndcX = clipped.x / clipped.w;
+        float ndcY = clipped.y / clipped.w;
+        float z = clipped.z / clipped.w;
+        Maths::Vec2i screenPos = viewport(ndcX, ndcY, m_width, m_height);
+        int halfSize = (int)(particle.size * 0.5f + 0.5f);
+        if (particle.size < 1.0f) halfSize = 0;
+        for (int dy = -halfSize; dy <= halfSize; dy++)
+        {
+            for (int dx = -halfSize; dx <= halfSize; dx++)
+            {
+                int px = screenPos.x + dx;
+                int py = screenPos.y + dy;
+                if (px >= 0 && px < (int)m_width && py >= 0 && py < (int)m_height)
+                {
+                    if (z > getDepthBuffer()[py * m_width + px])
+                    {
+                        continue;
+                    }
+                    uint32_t dst = getFrameBuffer()[py * m_width + px];
+                    uint32_t src = particle.color;
+
+                    uint32_t r = std::min(((dst >> 16) & 0xFF) + ((src >> 16) & 0xFF), 255u);
+                    uint32_t g = std::min(((dst >>  8) & 0xFF) + ((src >>  8) & 0xFF), 255u);
+                    uint32_t b = std::min(( dst        & 0xFF) + ( src        & 0xFF), 255u);
+                    getFrameBuffer()[py * m_width + px] = 0xFF000000 | (r << 16) | (g << 8) | b;
+
+                }
+            }
+        }
+    }
 }
 
 void Renderer::present(SDL_Texture* texture, SDL_Renderer* sdlRenderer)

@@ -13,6 +13,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(SDL3)
 
+FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG        v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+
 add_subdirectory(Maths)
 
 
@@ -27,15 +35,40 @@ add_executable(cpu_renderer_sdl
         src/Asset/Mesh.h
         src/Asset/Texture.cpp
         src/Asset/Light.h
-        src/Asset/Mesh.cpp "src/Renderer/clip.h"
+        src/Asset/Mesh.cpp
+        src/Renderer/clip.h
         src/Engine/Engine.cpp
         src/Engine/Engine.h
         src/Engine/Time.cpp
         src/Engine/Time.h
         src/Renderer/Renderer.cpp
-        src/Renderer/Renderer.h "src/Asset/Material.h" "src/Asset/Color.h" "src/Renderer/Shader.h" "src/Parsing/MtlLoader.h" "src/Asset/Font.h" "src/Asset/Font.cpp")
+        src/Renderer/Renderer.h
+        src/Asset/Material.h
+        src/Asset/Color.h
+        src/Renderer/Shader.h
+        src/Parsing/MtlLoader.h
+        src/Asset/Font.h
+        src/Asset/Font.cpp
+        src/Renderer/Emitter/EmitterConfig.h
+        src/Renderer/Emitter/EmitterConfig.cpp
+        src/Renderer/Emitter/Particle.h
+        src/Renderer/Emitter/Particle.cpp
+        src/Renderer/Emitter/particleEmitter.h
+        src/Renderer/Emitter/particleEmitter.cpp
+        src/Renderer/Emitter/ParticleSystem.h
+        src/Renderer/Emitter/ParticleSystem.cpp
+        src/Renderer/Emitter/ParticleMemoryPools.h
+        src/Renderer/Emitter/ParticleMemoryPools.cpp
+        src/Renderer/Emitter/ParticleMemoryManager.h
+        src/Renderer/Emitter/ParticleMemoryManager.cpp
+        src/Renderer/Emitter/ParticleUpdateJob.h
+        src/Renderer/Emitter/ParticleUpdateJob.cpp
+        src/Renderer/Emitter/MasterParticleVertexBuffer.h
+        src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
+        src/Renderer/Emitter/ParticleManager.h
+        src/Renderer/Emitter/ParticleManager.cpp)
 
-target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths)
+target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
 target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 

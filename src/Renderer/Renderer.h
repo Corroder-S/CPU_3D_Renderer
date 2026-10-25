@@ -33,7 +33,7 @@ struct ScreenTriangle {
     Maths::Vec3f n0, n1, n2;
     Maths::Vec3f wp0, wp1, wp2;
 
-    ShaderUniforms uniforms; // Stocké par valeur (plus de pointeur caduc)
+    ShaderUniforms uniforms; 
     const Light* light = nullptr;
     float avgZ = 0.0f;
     bool writeDepth = true;
@@ -51,6 +51,7 @@ public:
         const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
         const Light& light, bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
     void drawText(const Font& font, const std::string& text, int x, int y, const Color& color);
+    void drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<>& viewProj);
     void present(SDL_Texture* texture, SDL_Renderer* sdlRenderer);
     void clearFrameBuffer(uint32_t color);
     void clearDepthBuffer();
@@ -60,6 +61,7 @@ public:
     uint32_t  getWidth()  const { return m_width; }
     uint32_t  getHeight() const { return m_height; }
 
+    void setParticleManager(ParticleManager* manager) { m_particleManager = manager; }
 private:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
@@ -73,6 +75,8 @@ private:
     std::vector<Maths::Vec3f> m_worldNormals;
     std::vector<Maths::Vec3f> m_worldPositions;
     std::vector<ScreenTriangle> m_screenTriangles;
+
+    ParticleManager* m_particleManager;
 
     void onResize(int32_t width, int32_t height);
     void workerLoop(Worker& w);

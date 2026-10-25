@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Asset/Light.h"
 #include "Asset/Mesh.h"
 #include "Asset/Texture.h"
@@ -14,11 +14,11 @@ class Application : public Engine
     Mesh    m_mesh;
 	Font    m_font;
     std::shared_ptr<Texture> m_texture;
+    ParticleManager m_particleManager;
+
+
 
 public:
-    void start() override;
-
-
+    void start()  override;
     void update() override;
-
 };

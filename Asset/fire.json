@@ -1,0 +1,17 @@
+{
+  "type": "fire",
+  "emitRate": 3000,
+  "maxlife": 1.5,
+  "startSpeed": 2.5,
+  "endSpeed": 0.5,
+  "angleMin": 70,
+  "angleMax": 110,
+  "spreadAngle": 50,
+  "startSize": 3.0,
+  "endSize": 1.0,
+  "startColor": 4294919168,
+  "endColor": 2164195328,
+  "blendMode": 1,
+  "gravityScale": 0.3,
+  "looping": true
+}

@@ -1,9 +1,7 @@
-﻿//
-// Created by leoam on 20/10/2026.
-//
 
 #include "Application.h"
 #include "Engine/Time.h"
+#include "Renderer/Emitter/ParticleMemoryManager.h"
 
 
 void Application::start()
@@ -36,6 +34,16 @@ void Application::start()
 
     m_scene.camera.position = { 0.0f, 0.0f, 3.0f };
     m_scene.camera.target = { 0.0f, 0.0f, 0.0f };
+
+
+
+
+
+    m_particleManager.initialize(10000, 4);
+
+    emitterConfig cfg = loadFromJson(ASSETS_PATH "fire.json");
+    m_particleManager.createSystem(cfg, {0, 0, 0});
+    m_renderer.setParticleManager(&m_particleManager);
 }
 
 void Application::update()
@@ -49,4 +57,26 @@ void Application::update()
     int fps = (dt > 0.0f) ? static_cast<int>(1.0f / dt) : 0;
     m_renderer.drawText(m_font, "FPS: " + std::to_string(fps), 15, 15, Color::Green);
     m_renderer.drawText(m_font, "Les tenebres", 15, 40, Color::White);
+    m_particleManager.update(dt);
+
+    auto viewProj = m_scene.camera.getProjMatrix((float)m_renderer.getWidth() / m_renderer.getHeight())
+              * m_scene.camera.getViewMatrix();
+
+
+    auto& verts = m_particleManager.getMasterBuffer().getVertexBuffer();
+    SDL_Log("Particle count: %u", m_particleManager.getMasterBuffer().getTotalVertCount());
+    uint32_t count = m_particleManager.getMasterBuffer().getTotalVertCount();
+    std::sort(verts.begin(), verts.end(),
+        [&]( ParticleVertex& a, ParticleVertex& b) {
+                auto da = a.position - m_scene.camera.position;
+                auto db = b.position - m_scene.camera.position;
+                float distA = da.x*da.x + da.y*da.y + da.z*da.z;
+                float distB = db.x*db.x + db.y*db.y + db.z*db.z;
+                return distA > distB;
+                });
+    for (uint32_t i = 0; i < count; i++)
+    {
+        m_renderer.drawParticle(verts[i], viewProj);
+    }
+
 }
