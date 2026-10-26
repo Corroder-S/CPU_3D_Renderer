@@ -76,14 +76,16 @@ namespace Maths
     template <typename T>
     T& Matrix3x3<T>::operator()(std::size_t row, std::size_t column)
     {
-        assert(row < 3 && column < 3 && "Matrix index is out of range");
+        if (row >= 3 || column >= 3)
+            throw std::out_of_range("Matrix index is out of range");
         return values[row][column];
     }
 
     template <typename T>
     const T& Matrix3x3<T>::operator()(std::size_t row, std::size_t column) const
     {
-        assert(row < 3 && column < 3 && "Matrix index is out of range");
+        if (row >= 3 || column >= 3)
+            throw std::out_of_range("Matrix index is out of range");
         return values[row][column];
     }
 
@@ -243,7 +245,9 @@ namespace Maths
     template <typename T>
     Matrix3x3<T> Matrix3x3<T>::Inverse(T relativeTolerance) const
     {
-        assert(std::isfinite(relativeTolerance) && relativeTolerance >= T{0} && relativeTolerance < T{1} && "Inverse tolerance must be finite and in [0, 1)");
+        if (!std::isfinite(relativeTolerance) || relativeTolerance < T{ 0 } || relativeTolerance >= T{ 1 })
+            throw std::invalid_argument("Inverse tolerance must be finite and in [0, 1)");
+
         Matrix3x3 left = *this;
         Matrix3x3 right;
         T scales[3]{};
@@ -251,10 +255,12 @@ namespace Maths
         {
             for (std::size_t column = 0; column < 3; ++column)
             {
-                assert(std::isfinite(left.values[row][column]) && "Cannot invert a non-finite matrix");
+                if (!std::isfinite(left.values[row][column]))
+                    throw std::domain_error("Cannot invert a non-finite matrix");
                 scales[row] = std::max(scales[row], std::abs(left.values[row][column]));
             }
-            assert(scales[row] != T{0} && "Cannot invert a singular matrix");
+            if (scales[row] == T{ 0 })
+                throw std::domain_error("Cannot invert a singular matrix");
         }
         for (std::size_t column = 0; column < 3; ++column)
         {
@@ -267,7 +273,9 @@ namespace Maths
                     pivot = row;
                 }
             }
-            assert(std::abs(left.values[pivot][column]) / scales[pivot] > relativeTolerance && "Matrix is singular or too ill-conditioned");
+            if (std::abs(left.values[pivot][column]) / scales[pivot] <= relativeTolerance)
+                throw std::domain_error("Matrix is singular or too ill-conditioned");
+
             for (std::size_t j = 0; j < 3; ++j)
             {
                 std::swap(left.values[column][j], left.values[pivot][j]);
@@ -282,10 +290,7 @@ namespace Maths
             }
             for (std::size_t row = 0; row < 3; ++row)
             {
-                if (row == column)
-                {
-                    continue;
-                }
+                if (row == column) continue;
                 const T factor = left.values[row][column];
                 for (std::size_t j = 0; j < 3; ++j)
                 {
@@ -294,9 +299,6 @@ namespace Maths
                 }
             }
         }
-        for (std::size_t row = 0; row < 3; ++row)
-            for (std::size_t column = 0; column < 3; ++column)
-                assert(std::isfinite(right.values[row][column]) && "Inverse is not representable");
         return right;
     }
 

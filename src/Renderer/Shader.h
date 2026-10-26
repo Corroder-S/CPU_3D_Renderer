@@ -4,9 +4,9 @@
 #include <algorithm>
 #include "Maths/Vec2.h"
 #include "Maths/Vec3.h"
-#include "Asset/Color.h"
-#include "Asset/Material.h"
-#include "Asset/Light.h"
+#include "src/Asset/Color.h"
+#include "src/Asset/Material.h"
+#include "src/Asset/Light.h"
 
 struct FragmentInput {
     Maths::Vec2f uv;
@@ -46,11 +46,17 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     Color specular;
 
     if (NdotL > 0.0f) {
-        Maths::Vec3f V = Maths::Normalize(u.cameraPos - in.worldPos);
-        Maths::Vec3f H = Maths::Normalize(L + V);
-        float NdotH = std::max(0.0f, Maths::Dot(N, H));
-        float specFactor = std::pow(NdotH, u.material->shininess);
-        specular = u.material->specular * specFactor;
+        Maths::Vec3f dirV = u.cameraPos - in.worldPos;
+        if (dirV.MagnitudeSquared() > 0.0f) {
+            Maths::Vec3f V = Maths::Normalize(dirV);
+            Maths::Vec3f H = L + V;
+            if (H.MagnitudeSquared() > 0.0f) {
+                H = Maths::Normalize(H);
+                float NdotH = std::max(0.0f, Maths::Dot(N, H));
+                float specFactor = std::pow(NdotH, u.material->shininess);
+                specular = u.material->specular * specFactor;
+            }
+        }
     }
 
     Color finalColor = ambient + diffuse + specular;

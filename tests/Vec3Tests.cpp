@@ -1,0 +1,303 @@
+#include "TestHelpers.h"
+#include "Maths/Vec3.h"
+#include <numbers>
+#include <type_traits>
+
+using namespace TestHelpers;
+
+namespace
+{
+    template <typename T>
+    void DefaultConstructorIsZero()
+    {
+        using V = Maths::Vec3<T>;
+        const V actual;
+        VectorNear(V{0, 0, 0}, actual);
+    }
+
+    template <typename T>
+    void ComponentsAndCopyAreIndependent()
+    {
+        using V = Maths::Vec3<T>;
+        const V original{1, 2, 3};
+        V copy = original;
+        copy.x = T{99};
+        VectorNear(V{1, 2, 3}, original);
+        EXPECT_TRUE(copy.x == T{99});
+    }
+
+    template <typename T>
+    void ExplicitConversionPreservesValues()
+    {
+        using V = Maths::Vec3<T>;
+        const Maths::Vec3<double> source{1.5, 2.5, 3.5};
+        const V actual(source);
+        VectorNear(V{T{1.5}, T{2.5}, T{3.5}}, actual);
+    }
+
+    template <typename T>
+    void AdditionHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        const V b = V{2, 3, 4};
+        const V actual = a + b;
+        VectorNear(V{3, 5, 7}, actual);
+    }
+
+    template <typename T>
+    void SubtractionHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        const V b = V{2, 3, 4};
+        const V actual = a - b;
+        VectorNear(V{-1, -1, -1}, actual);
+    }
+
+    template <typename T>
+    void ComponentProductHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        const V b = V{2, 3, 4};
+        const V actual = a * b;
+        VectorNear(V{2, 6, 12}, actual);
+    }
+
+    template <typename T>
+    void ComponentDivisionHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{2, 6, 12};
+        const V b = V{2, 3, 4};
+        const V actual = a / b;
+        VectorNear(V{1, 2, 3}, actual);
+    }
+
+    template <typename T>
+    void ScalarOperationsAndNegation()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        VectorNear(V{-1, -2, -3}, -a);
+        VectorNear(V{2, 4, 6}, a * T{2});
+        VectorNear(V{2, 4, 6}, T{2} * a);
+        VectorNear(a, (a * T{2}) / T{2});
+    }
+
+    template <typename T>
+    void CompoundOperatorsReturnSelfAndSupportAliasing()
+    {
+        using V = Maths::Vec3<T>;
+        V a = V{1, 2, 3};
+        EXPECT_TRUE(&(a += a) == &a);
+        VectorNear(V{2, 4, 6}, a);
+        a -= V{1, 2, 3};
+        a *= a;
+        VectorNear(V{1, 4, 9}, a);
+        a /= V{1, 2, 3};
+        a *= T{2};
+        a /= T{2};
+        VectorNear(V{1, 2, 3}, a);
+    }
+
+    template <typename T>
+    void DivisionByZeroThrowsWithoutPartialMutation()
+    {
+        using V = Maths::Vec3<T>;
+        const V original = V{1, 2, 3};
+        V actual = original;
+        EXPECT_THROW(actual /= T{0}, std::domain_error);
+        VectorNear(original, actual);
+        EXPECT_THROW((actual /= V{0, 1, 1}), std::domain_error);
+        VectorNear(original, actual);
+        EXPECT_THROW((actual /= V{1, 0, 1}), std::domain_error);
+        VectorNear(original, actual);
+        EXPECT_THROW((actual /= V{1, 1, 0}), std::domain_error);
+        VectorNear(original, actual);
+    }
+
+    template <typename T>
+    void EqualityChecksEveryComponentExactly()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        EXPECT_TRUE(a == a);
+        V changedx = a;
+        changedx.x += T{1};
+        EXPECT_TRUE(changedx != a);
+        V changedy = a;
+        changedy.y += T{1};
+        EXPECT_TRUE(changedy != a);
+        V changedz = a;
+        changedz.z += T{1};
+        EXPECT_TRUE(changedz != a);
+        V nan = a;
+        nan.x = std::numeric_limits<T>::quiet_NaN();
+        EXPECT_FALSE(nan == nan);
+    }
+
+    template <typename T>
+    void DotHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        const V b = V{2, 3, 4};
+        Near(T{20}, a.Dot(b));
+    }
+
+    template <typename T>
+    void MagnitudeHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{3, 4, 0};
+        Near(T{25}, a.MagnitudeSquared());
+        Near(T{5}, a.Magnitude());
+        Near(T{0}, V{}.Magnitude());
+    }
+
+    template <typename T>
+    void NormalizeReturnsNewUnitVector()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{3, 4, 0};
+        const V actual = a.Normalize();
+        VectorNear(V{T{0.6}, T{0.8}, T{0}}, actual);
+        Near(T{1}, actual.Magnitude());
+        VectorNear(V{3, 4, 0}, a);
+    }
+
+    template <typename T>
+    void NormalizeRejectsZeroAndNonFinite()
+    {
+        using V = Maths::Vec3<T>;
+        EXPECT_THROW((void)V{}.Normalize(), std::domain_error);
+        V invalid = V{1, 2, 3};
+        invalid.x = std::numeric_limits<T>::infinity();
+        EXPECT_THROW((void)invalid.Normalize(), std::domain_error);
+        invalid.x = std::numeric_limits<T>::quiet_NaN();
+        EXPECT_THROW((void)invalid.Normalize(), std::domain_error);
+    }
+
+    template <typename T>
+    void NormalizeHandlesVeryLargeAndSmallFiniteValues()
+    {
+        using V = Maths::Vec3<T>;
+        const T large = std::numeric_limits<T>::max();
+        const T small = std::numeric_limits<T>::min();
+        const V expected = V{T{1}, T{1}, T{1}} / std::sqrt(T{3});
+        VectorNear(expected, V{large, large, large}.Normalize());
+        VectorNear(expected, V{small, small, small}.Normalize());
+    }
+
+    template <typename T>
+    void DistanceHasKnownResult()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, 2, 3};
+        const V b = V{4, 6, 3};
+        Near(T{25}, a.DistanceSquared(b));
+        Near(T{5}, a.Distance(b));
+    }
+
+    template <typename T>
+    void AngleUsesRadians()
+    {
+        using V = Maths::Vec3<T>;
+        Near(std::numbers::pi_v<T> / T{2}, V::UnitX.Angle(V::UnitY));
+        Near(std::numbers::pi_v<T>, V::UnitX.Angle(-V::UnitX));
+        Near(T{0}, V::UnitX.Angle(V::UnitX));
+        EXPECT_THROW((void)V::Zero.Angle(V::UnitX), std::domain_error);
+    }
+
+    template <typename T>
+    void LerpSupportsEndpointsMidpointAndExtrapolation()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{0, 0, 0};
+        const V b = V{2, 4, 6};
+        VectorNear(a, V::Lerp(a, b, T{0}));
+        VectorNear(b, V::Lerp(a, b, T{1}));
+        VectorNear(V{1, 2, 3}, V::Lerp(a, b, T{0.5}));
+        VectorNear(V{4, 8, 12}, V::Lerp(a, b, T{2}));
+    }
+
+    template <typename T>
+    void MinMaxAreComponentWise()
+    {
+        using V = Maths::Vec3<T>;
+        const V a = V{1, -4, 7};
+        const V b = V{3, -2, 5};
+        VectorNear(V{1, -4, 5}, V::Min(a,b));
+        VectorNear(V{3, -2, 7}, V::Max(a,b));
+    }
+
+    template <typename T>
+    void NamedConstantsHaveExpectedComponents()
+    {
+        using V = Maths::Vec3<T>;
+        VectorNear(V{0, 0, 0}, V::Zero);
+        VectorNear(V{1, 1, 1}, V::One);
+        VectorNear(V{1, 0, 0}, V::UnitX);
+        VectorNear(V{0, 1, 0}, V::UnitY);
+        VectorNear(V{0, 0, 1}, V::UnitZ);
+    }
+
+    template <typename T>
+    void CrossUsesRightHandedOrientation()
+    {
+        using V = Maths::Vec3<T>;
+        VectorNear(V{0, 0, 1}, V::UnitX.Cross(V::UnitY));
+        VectorNear(V{0, 0, -1}, V::UnitY.Cross(V::UnitX));
+        const V a{1, 2, 3};
+        const V b{4, 5, 6};
+        VectorNear(V{-3, 6, -3}, a.Cross(b));
+        VectorNear(V::Zero, a.Cross(a));
+    }
+}
+
+TEST(Vec3Tests, DefaultConstructorIsZero_float)          { DefaultConstructorIsZero<float>(); }
+TEST(Vec3Tests, DefaultConstructorIsZero_double)         { DefaultConstructorIsZero<double>(); }
+TEST(Vec3Tests, ComponentsAndCopyAreIndependent_float)   { ComponentsAndCopyAreIndependent<float>(); }
+TEST(Vec3Tests, ComponentsAndCopyAreIndependent_double)  { ComponentsAndCopyAreIndependent<double>(); }
+TEST(Vec3Tests, ExplicitConversionPreservesValues_float) { ExplicitConversionPreservesValues<float>(); }
+TEST(Vec3Tests, ExplicitConversionPreservesValues_double){ ExplicitConversionPreservesValues<double>(); }
+TEST(Vec3Tests, AdditionHasKnownResult_float)            { AdditionHasKnownResult<float>(); }
+TEST(Vec3Tests, AdditionHasKnownResult_double)           { AdditionHasKnownResult<double>(); }
+TEST(Vec3Tests, SubtractionHasKnownResult_float)         { SubtractionHasKnownResult<float>(); }
+TEST(Vec3Tests, SubtractionHasKnownResult_double)        { SubtractionHasKnownResult<double>(); }
+TEST(Vec3Tests, ComponentProductHasKnownResult_float)    { ComponentProductHasKnownResult<float>(); }
+TEST(Vec3Tests, ComponentProductHasKnownResult_double)   { ComponentProductHasKnownResult<double>(); }
+TEST(Vec3Tests, ComponentDivisionHasKnownResult_float)   { ComponentDivisionHasKnownResult<float>(); }
+TEST(Vec3Tests, ComponentDivisionHasKnownResult_double)  { ComponentDivisionHasKnownResult<double>(); }
+TEST(Vec3Tests, ScalarOperationsAndNegation_float)       { ScalarOperationsAndNegation<float>(); }
+TEST(Vec3Tests, ScalarOperationsAndNegation_double)      { ScalarOperationsAndNegation<double>(); }
+TEST(Vec3Tests, CompoundOperatorsReturnSelfAndSupportAliasing_float)  { CompoundOperatorsReturnSelfAndSupportAliasing<float>(); }
+TEST(Vec3Tests, CompoundOperatorsReturnSelfAndSupportAliasing_double) { CompoundOperatorsReturnSelfAndSupportAliasing<double>(); }
+TEST(Vec3Tests, DivisionByZeroThrowsWithoutPartialMutation_float)     { DivisionByZeroThrowsWithoutPartialMutation<float>(); }
+TEST(Vec3Tests, DivisionByZeroThrowsWithoutPartialMutation_double)    { DivisionByZeroThrowsWithoutPartialMutation<double>(); }
+TEST(Vec3Tests, EqualityChecksEveryComponentExactly_float)  { EqualityChecksEveryComponentExactly<float>(); }
+TEST(Vec3Tests, EqualityChecksEveryComponentExactly_double) { EqualityChecksEveryComponentExactly<double>(); }
+TEST(Vec3Tests, DotHasKnownResult_float)                 { DotHasKnownResult<float>(); }
+TEST(Vec3Tests, DotHasKnownResult_double)                { DotHasKnownResult<double>(); }
+TEST(Vec3Tests, MagnitudeHasKnownResult_float)           { MagnitudeHasKnownResult<float>(); }
+TEST(Vec3Tests, MagnitudeHasKnownResult_double)          { MagnitudeHasKnownResult<double>(); }
+TEST(Vec3Tests, NormalizeReturnsNewUnitVector_float)     { NormalizeReturnsNewUnitVector<float>(); }
+TEST(Vec3Tests, NormalizeReturnsNewUnitVector_double)    { NormalizeReturnsNewUnitVector<double>(); }
+TEST(Vec3Tests, NormalizeRejectsZeroAndNonFinite_float)  { NormalizeRejectsZeroAndNonFinite<float>(); }
+TEST(Vec3Tests, NormalizeRejectsZeroAndNonFinite_double) { NormalizeRejectsZeroAndNonFinite<double>(); }
+TEST(Vec3Tests, NormalizeHandlesVeryLargeAndSmallFiniteValues_float)  { NormalizeHandlesVeryLargeAndSmallFiniteValues<float>(); }
+TEST(Vec3Tests, NormalizeHandlesVeryLargeAndSmallFiniteValues_double) { NormalizeHandlesVeryLargeAndSmallFiniteValues<double>(); }
+TEST(Vec3Tests, DistanceHasKnownResult_float)            { DistanceHasKnownResult<float>(); }
+TEST(Vec3Tests, DistanceHasKnownResult_double)           { DistanceHasKnownResult<double>(); }
+TEST(Vec3Tests, AngleUsesRadians_float)                  { AngleUsesRadians<float>(); }
+TEST(Vec3Tests, AngleUsesRadians_double)                 { AngleUsesRadians<double>(); }
+TEST(Vec3Tests, LerpSupportsEndpointsMidpointAndExtrapolation_float)  { LerpSupportsEndpointsMidpointAndExtrapolation<float>(); }
+TEST(Vec3Tests, LerpSupportsEndpointsMidpointAndExtrapolation_double) { LerpSupportsEndpointsMidpointAndExtrapolation<double>(); }
+TEST(Vec3Tests, MinMaxAreComponentWise_float)            { MinMaxAreComponentWise<float>(); }
+TEST(Vec3Tests, MinMaxAreComponentWise_double)           { MinMaxAreComponentWise<double>(); }
+TEST(Vec3Tests, NamedConstantsHaveExpectedComponents_float)  { NamedConstantsHaveExpectedComponents<float>(); }
+TEST(Vec3Tests, NamedConstantsHaveExpectedComponents_double) { NamedConstantsHaveExpectedComponents<double>(); }
+TEST(Vec3Tests, CrossUsesRightHandedOrientation_float)   { CrossUsesRightHandedOrientation<float>(); }
+TEST(Vec3Tests, CrossUsesRightHandedOrientation_double)  { CrossUsesRightHandedOrientation<double>(); }

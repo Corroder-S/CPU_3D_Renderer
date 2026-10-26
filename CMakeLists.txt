@@ -81,3 +81,22 @@ add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
         $<TARGET_FILE:SDL3::SDL3>
         $<TARGET_FILE_DIR:cpu_renderer_sdl>
 )
+
+option(BUILD_TESTS "Build unit tests" ON)
+
+if(BUILD_TESTS)
+    enable_testing()
+
+    # Téléchargement automatique de GoogleTest
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
+    # Empêche GoogleTest de surcharger le runtime MSVC sous Windows
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    # Inclusion du sous-dossier de tests
+    add_subdirectory(tests)
+endif()

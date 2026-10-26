@@ -58,5 +58,6 @@ Mesh LoadMesh(const char* path, Material& material)
 
 Mesh LoadMesh(const char* path)
 {
+
     return LoadMesh(path);
 }

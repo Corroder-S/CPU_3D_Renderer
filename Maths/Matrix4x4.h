@@ -80,14 +80,16 @@ namespace Maths
     template <typename T>
     T& Matrix4x4<T>::operator()(std::size_t row, std::size_t column)
     {
-        assert(row < 4 && column < 4 && "Matrix index is out of range");
+        if (row >= 4 || column >= 4)
+            throw std::out_of_range("Matrix index is out of range");
         return values[row][column];
     }
 
     template <typename T>
     const T& Matrix4x4<T>::operator()(std::size_t row, std::size_t column) const
     {
-        assert(row < 4 && column < 4 && "Matrix index is out of range");
+        if (row >= 4 || column >= 4)
+            throw std::out_of_range("Matrix index is out of range");
         return values[row][column];
     }
 
@@ -248,7 +250,9 @@ namespace Maths
     template <typename T>
     Matrix4x4<T> Matrix4x4<T>::Inverse(T relativeTolerance) const
     {
-        assert(std::isfinite(relativeTolerance) && relativeTolerance >= T{0} && relativeTolerance < T{1} && "Inverse tolerance must be finite and in [0, 1)");
+        if (!std::isfinite(relativeTolerance) || relativeTolerance < T{ 0 } || relativeTolerance >= T{ 1 })
+            throw std::invalid_argument("Inverse tolerance must be finite and in [0, 1)");
+
         Matrix4x4 left = *this;
         Matrix4x4 right;
         T scales[4]{};
@@ -256,10 +260,12 @@ namespace Maths
         {
             for (std::size_t column = 0; column < 4; ++column)
             {
-                assert(std::isfinite(left.values[row][column]) && "Cannot invert a non-finite matrix");
+                if (!std::isfinite(left.values[row][column]))
+                    throw std::domain_error("Cannot invert a non-finite matrix");
                 scales[row] = std::max(scales[row], std::abs(left.values[row][column]));
             }
-            assert(scales[row] != T{0} && "Cannot invert a singular matrix");
+            if (scales[row] == T{ 0 })
+                throw std::domain_error("Cannot invert a singular matrix");
         }
         for (std::size_t column = 0; column < 4; ++column)
         {
@@ -272,7 +278,9 @@ namespace Maths
                     pivot = row;
                 }
             }
-            assert(std::abs(left.values[pivot][column]) / scales[pivot] > relativeTolerance && "Matrix is singular or too ill-conditioned");
+            if (std::abs(left.values[pivot][column]) / scales[pivot] <= relativeTolerance)
+                throw std::domain_error("Matrix is singular or too ill-conditioned");
+
             for (std::size_t j = 0; j < 4; ++j)
             {
                 std::swap(left.values[column][j], left.values[pivot][j]);
@@ -287,10 +295,7 @@ namespace Maths
             }
             for (std::size_t row = 0; row < 4; ++row)
             {
-                if (row == column)
-                {
-                    continue;
-                }
+                if (row == column) continue;
                 const T factor = left.values[row][column];
                 for (std::size_t j = 0; j < 4; ++j)
                 {
@@ -299,9 +304,6 @@ namespace Maths
                 }
             }
         }
-        for (std::size_t row = 0; row < 4; ++row)
-            for (std::size_t column = 0; column < 4; ++column)
-                assert(std::isfinite(right.values[row][column]) && "Inverse is not representable");
         return right;
     }
 
@@ -367,14 +369,18 @@ namespace Maths
     template <typename T>
     Vec3<T> Matrix4x4<T>::TransformPoint(const Vec3<T>& point) const
     {
-        const Vec4<T> result = *this * Vec4<T>(point, T{1});
+        if (values[3][0] != T{ 0 } || values[3][1] != T{ 0 } || values[3][2] != T{ 0 } || values[3][3] != T{ 1 })
+            throw std::domain_error("Transform requires an affine matrix");
+        const Vec4<T> result = *this * Vec4<T>(point, T{ 1 });
         return Vec3<T>(result);
     }
 
     template <typename T>
     Vec3<T> Matrix4x4<T>::TransformDirection(const Vec3<T>& direction) const
     {
-        const Vec4<T> result = *this * Vec4<T>(direction, T{0});
+        if (values[3][0] != T{ 0 } || values[3][1] != T{ 0 } || values[3][2] != T{ 0 } || values[3][3] != T{ 1 })
+            throw std::domain_error("Transform requires an affine matrix");
+        const Vec4<T> result = *this * Vec4<T>(direction, T{ 0 });
         return Vec3<T>(result);
     }
 
