@@ -20,7 +20,7 @@ struct ShaderUniforms {
     Maths::Vec3f    cameraPos;
 };
 
-inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u)
+inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u, Maths::Vec3f L)
 {
     if (!u.material || !u.light) return Color::White;
 
@@ -36,7 +36,6 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     }
 
     Maths::Vec3f N = Maths::Normalize(in.normal);
-    Maths::Vec3f L = Maths::Normalize(u.light->direction);
 
     Color ambient = albedo * (u.material->ambient * u.light->ambient);
 
@@ -49,7 +48,7 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
         Maths::Vec3f V = Maths::Normalize(u.cameraPos - in.worldPos);
         Maths::Vec3f H = Maths::Normalize(L + V);
         float NdotH = std::max(0.0f, Maths::Dot(N, H));
-        float specFactor = std::pow(NdotH, u.material->shininess);
+        float specFactor = (NdotH > 0.0f) ? std::exp2(u.material->shininess * std::log2(NdotH)) : 0.0f;
         specular = u.material->specular * specFactor;
     }
 

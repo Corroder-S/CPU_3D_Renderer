@@ -30,27 +30,9 @@ Mesh LoadMesh(const char* path, Material& material)
         mesh.vertexNormals[mesh.faces[i].v.z] += mesh.faceNormals[i];
     }
 
-
-
-    std::map<std::tuple<float,float,float>, Maths::Vec3f> posNormals;
-    for (int i = 0; i < (int)mesh.faces.size(); i++)
+    for (auto &n : mesh.vertexNormals)
     {
-        for (int j = 0; j < 3; j++)
-        {
-            int vi = (j==0) ? mesh.faces[i].v.x : (j==1) ? mesh.faces[i].v.y : mesh.faces[i].v.z;
-            const Maths::Vec3f& pos = mesh.vertices[vi];
-            auto key = std::make_tuple(pos.x, pos.y, pos.z);
-            posNormals[key] += mesh.faceNormals[i];
-        }
-    }
-
-
-    mesh.vertexNormals.resize(mesh.vertices.size());
-    for (int i = 0; i < (int)mesh.vertices.size(); i++)
-    {
-        const Maths::Vec3f& pos = mesh.vertices[i];
-        auto key = std::make_tuple(pos.x, pos.y, pos.z);
-        mesh.vertexNormals[i] = Maths::Normalize(posNormals[key]);
+        n = Maths::Normalize(n);
     }
 
     return mesh;
@@ -58,5 +40,6 @@ Mesh LoadMesh(const char* path, Material& material)
 
 Mesh LoadMesh(const char* path)
 {
-    return LoadMesh(path);
+    Material dummyMaterial;
+    return LoadMesh(path, dummyMaterial);
 }

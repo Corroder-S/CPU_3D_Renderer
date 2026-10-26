@@ -25,18 +25,19 @@ void Renderer::init(uint32_t width, uint32_t height)
     {
         m_workers[i].thread = std::thread(&Renderer::workerLoop, this, std::ref(m_workers[i]));
     }
+
 }
 
 void Renderer::renderScene(const Scene& scene)
 {
     m_screenTriangles.clear();
+    m_opaqueTriangles.clear();
+    m_transparentTriangles.clear();
 
     auto view = scene.camera.getViewMatrix();
     auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
     auto viewProj = proj * view;
 
-    std::vector<ScreenTriangle> opaqueTriangles;
-    std::vector<ScreenTriangle> transparentTriangles;
 
     for (auto& obj : scene.objects)
     {
@@ -48,39 +49,47 @@ void Renderer::renderScene(const Scene& scene)
         ShaderUniforms uniforms{ &obj.material, &scene.lights[0], scene.camera.position };
 
         bool isTransparent = (obj.material.dissolve < 1.0f);
-        auto& targetList = isTransparent ? transparentTriangles : opaqueTriangles;
+        auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
 
         drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0], isTransparent, targetList);
     }
 
-    if (!opaqueTriangles.empty())
+    if (!m_opaqueTriangles.empty())
     {
-        m_screenTriangles = std::move(opaqueTriangles);
+        m_screenTriangles = std::move(m_opaqueTriangles);
 
         for (int i = 0; i < 4; i++) {
-            m_workers[i].hasWork = true;
+            {
+                std::lock_guard lock(m_workers[i].mutex);
+                m_workers[i].hasWork = true;
+            }
             m_workers[i].cv.notify_one();
         }
         for (int i = 0; i < 4; i++) {
-            while (m_workers[i].hasWork) {}
+            std::unique_lock lock(m_workers[i].mutex);
+            m_workers[i].finished.wait(lock, [&] { return !m_workers[i].hasWork; });
         }
     }
 
-    if (!transparentTriangles.empty())
+    if (!m_transparentTriangles.empty())
     {
-        std::sort(transparentTriangles.begin(), transparentTriangles.end(),
+        std::sort(m_transparentTriangles.begin(), m_transparentTriangles.end(),
             [](const ScreenTriangle& t1, const ScreenTriangle& t2) {
                 return t1.avgZ > t2.avgZ;
             });
 
-        m_screenTriangles = std::move(transparentTriangles);
+        m_screenTriangles = std::move(m_transparentTriangles);
 
         for (int i = 0; i < 4; i++) {
-            m_workers[i].hasWork = true;
+            {
+                std::lock_guard lock(m_workers[i].mutex);
+                m_workers[i].hasWork = true;
+            }
             m_workers[i].cv.notify_one();
         }
         for (int i = 0; i < 4; i++) {
-            while (m_workers[i].hasWork) {}
+            std::unique_lock lock(m_workers[i].mutex);
+            m_workers[i].finished.wait(lock, [&] { return !m_workers[i].hasWork; });
         }
     }
 }
@@ -228,8 +237,8 @@ void Renderer::workerLoop(Worker& w)
     {
         std::unique_lock<std::mutex> lock(w.mutex);
         w.cv.wait(lock, [&] { return w.hasWork || w.stop; });
-
         if (w.stop) break;
+        lock.unlock();
 
         for (auto& tri : m_screenTriangles)
         {
@@ -247,6 +256,10 @@ void Renderer::workerLoop(Worker& w)
             );
         }
 
-        w.hasWork = false;
+        {
+            std::lock_guard lock2(w.mutex);
+            w.hasWork = false;
+        }
+        w.finished.notify_one();
     }
 }

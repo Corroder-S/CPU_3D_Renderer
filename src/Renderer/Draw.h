@@ -150,7 +150,7 @@ static inline void drawTriangle(
                 frag.normal = { nx, ny, nz };
                 frag.worldPos = { pxw * inv_iw, pyw * inv_iw, pzw * inv_iw };
 
-                Color color = evaluateBlinnPhong(frag, uniforms);
+                Color color = evaluateBlinnPhong(frag, uniforms, light.direction);
 
                 if (color.a < 1.0f)
                 {

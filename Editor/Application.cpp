@@ -31,15 +31,19 @@ void Application::start()
 
     m_scene.lights.push_back(Light{});
     m_scene.camera.position = { 0.0f, 0.0f, 0.0f };
-
+    m_scene.camera.target = { 0.0f, 0.0f, 0.0f };
     m_scene.camera.position = { 0.0f, 0.0f, 3.0f };
     m_scene.camera.target = { 0.0f, 0.0f, 0.0f };
 
 
-
+    for (auto &light : m_scene.lights)
+    {
+        light.direction = Maths::Normalize(light.direction);
+    }
 
 
     m_particleManager.initialize(10000, 4);
+
 
     emitterConfig cfg = loadFromJson(ASSETS_PATH "fire.json");
     m_particleManager.createSystem(cfg, {0, 0, 0});

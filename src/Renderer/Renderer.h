@@ -20,6 +20,7 @@ struct Worker {
     std::thread thread;
     std::mutex mutex;
     std::condition_variable cv;
+    std::condition_variable finished;
     std::atomic<bool> hasWork = false;
     std::atomic<bool> stop = false;
     Maths::Vec2i tileMin;
@@ -75,6 +76,9 @@ private:
     std::vector<Maths::Vec3f> m_worldNormals;
     std::vector<Maths::Vec3f> m_worldPositions;
     std::vector<ScreenTriangle> m_screenTriangles;
+
+    std::vector<ScreenTriangle> m_opaqueTriangles;
+    std::vector<ScreenTriangle> m_transparentTriangles;
 
     ParticleManager* m_particleManager;
 
