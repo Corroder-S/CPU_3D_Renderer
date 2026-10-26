@@ -70,6 +70,9 @@ add_executable(cpu_renderer_sdl
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
+target_compile_options(cpu_renderer_sdl PRIVATE /O2 /fp:fast)
+
+
 target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_compile_definitions(cpu_renderer_sdl PRIVATE

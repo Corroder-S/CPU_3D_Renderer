@@ -5,25 +5,34 @@
 
 Renderer::~Renderer()
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < m_numWorkers; i++)
     {
-        m_workers[i].stop = true;
-        m_workers[i].cv.notify_one();
-        m_workers[i].thread.join();
+        m_workers[i]->stop = true;
+        m_workers[i]->cv.notify_one();
+        m_workers[i]->thread.join();
     }
 }
 
 void Renderer::init(uint32_t width, uint32_t height)
 {
     onResize(width, height);
-    m_workers[0].tileMin = { 0,            0 };            m_workers[0].tileMax = { int(width / 2), int(height / 2) };
-    m_workers[1].tileMin = { int(width / 2), 0 };            m_workers[1].tileMax = { int(width),   int(height / 2) };
-    m_workers[2].tileMin = { 0,            int(height / 2) }; m_workers[2].tileMax = { int(width / 2), int(height) };
-    m_workers[3].tileMin = { int(width / 2), int(height / 2) }; m_workers[3].tileMax = { int(width),   int(height) };
+    m_numWorkers = std::max(1, (int)std::thread::hardware_concurrency() - 1);
+    m_workers.resize(m_numWorkers);
+    m_tileBins.resize(m_numWorkers);
+    for (int i = 0; i < m_numWorkers; i++)
+        m_workers[i] = std::make_unique<Worker>();
 
-    for (int i = 0; i < 4; i++)
+    int tileHeight = height / m_numWorkers;
+    for (int i = 0; i < m_numWorkers; i++)
     {
-        m_workers[i].thread = std::thread(&Renderer::workerLoop, this, std::ref(m_workers[i]));
+        m_workers[i]->id = i;
+        m_workers[i]->tileMin = { 0,           i * tileHeight };
+        m_workers[i]->tileMax = { (int)width,  (i+1) * tileHeight };
+    }
+
+    for (int i = 0; i < m_numWorkers; i++)
+    {
+        m_workers[i]->thread = std::thread(&Renderer::workerLoop, this, std::ref(*m_workers[i]));
     }
 
 }
@@ -33,10 +42,16 @@ void Renderer::renderScene(const Scene& scene)
     m_screenTriangles.clear();
     m_opaqueTriangles.clear();
     m_transparentTriangles.clear();
+    for (auto & bin : m_tileBins)
+    {
+        bin.clear();
+    }
 
     auto view = scene.camera.getViewMatrix();
     auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
     auto viewProj = proj * view;
+
+
 
 
     for (auto& obj : scene.objects)
@@ -56,19 +71,8 @@ void Renderer::renderScene(const Scene& scene)
 
     if (!m_opaqueTriangles.empty())
     {
-        m_screenTriangles = std::move(m_opaqueTriangles);
 
-        for (int i = 0; i < 4; i++) {
-            {
-                std::lock_guard lock(m_workers[i].mutex);
-                m_workers[i].hasWork = true;
-            }
-            m_workers[i].cv.notify_one();
-        }
-        for (int i = 0; i < 4; i++) {
-            std::unique_lock lock(m_workers[i].mutex);
-            m_workers[i].finished.wait(lock, [&] { return !m_workers[i].hasWork; });
-        }
+        m_screenTriangles.insert(m_screenTriangles.end(), m_opaqueTriangles.begin(), m_opaqueTriangles.end());
     }
 
     if (!m_transparentTriangles.empty())
@@ -78,20 +82,40 @@ void Renderer::renderScene(const Scene& scene)
                 return t1.avgZ > t2.avgZ;
             });
 
-        m_screenTriangles = std::move(m_transparentTriangles);
+        m_screenTriangles.insert(m_screenTriangles.end(), m_transparentTriangles.begin(), m_transparentTriangles.end());
 
-        for (int i = 0; i < 4; i++) {
+
+    }
+
+    for (auto& tri : m_screenTriangles)
+    {
+        int minX = std::min({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
+        int maxX = std::max({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
+        int minY = std::min({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
+        int maxY = std::max({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
+        for (int i = 0; i < m_numWorkers; i++)
+        {
+            // si le bounding box du triangle overlap la tile i
+            if (maxX >= m_workers[i]->tileMin.x && minX < m_workers[i]->tileMax.x &&
+                maxY >= m_workers[i]->tileMin.y && minY < m_workers[i]->tileMax.y)
             {
-                std::lock_guard lock(m_workers[i].mutex);
-                m_workers[i].hasWork = true;
+                m_tileBins[i].push_back(tri);
             }
-            m_workers[i].cv.notify_one();
-        }
-        for (int i = 0; i < 4; i++) {
-            std::unique_lock lock(m_workers[i].mutex);
-            m_workers[i].finished.wait(lock, [&] { return !m_workers[i].hasWork; });
         }
     }
+
+    for (int i = 0; i < m_numWorkers; i++) {
+        {
+            std::lock_guard lock(m_workers[i]->mutex);
+            m_workers[i]->hasWork = true;
+        }
+        m_workers[i]->cv.notify_one();
+    }
+    for (int i = 0; i < m_numWorkers; i++) {
+        std::unique_lock lock(m_workers[i]->mutex);
+        m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });
+    }
+
 }
 
 void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
@@ -240,7 +264,9 @@ void Renderer::workerLoop(Worker& w)
         if (w.stop) break;
         lock.unlock();
 
-        for (auto& tri : m_screenTriangles)
+
+
+        for (auto& tri : m_tileBins[w.id])
         {
             drawTriangle(
                 tri.a, tri.b, tri.c,

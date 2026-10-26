@@ -7,6 +7,7 @@
 #include "Asset/Color.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
+#include "Maths/SIMD/Vec3.h"
 
 struct FragmentInput {
     Maths::Vec2f uv;
@@ -35,19 +36,19 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
         albedo = albedo * Color(tr, tg, tb, ta);
     }
 
-    Maths::Vec3f N = Maths::Normalize(in.normal);
+    Maths::Vec3f N = Maths::SIMD::Normalize(in.normal);
 
     Color ambient = albedo * (u.material->ambient * u.light->ambient);
 
-    float NdotL = std::max(0.0f, Maths::Dot(N, L));
+    float NdotL = std::max(0.0f, Maths::SIMD::Dot(N, L));
     Color diffuse = albedo * NdotL;
 
     Color specular;
 
     if (NdotL > 0.0f) {
-        Maths::Vec3f V = Maths::Normalize(u.cameraPos - in.worldPos);
-        Maths::Vec3f H = Maths::Normalize(L + V);
-        float NdotH = std::max(0.0f, Maths::Dot(N, H));
+        Maths::Vec3f V = Maths::SIMD::Normalize(u.cameraPos - in.worldPos);
+        Maths::Vec3f H = Maths::SIMD::Normalize(L + V);
+        float NdotH = std::max(0.0f, Maths::SIMD::Dot(N, H));
         float specFactor = (NdotH > 0.0f) ? std::exp2(u.material->shininess * std::log2(NdotH)) : 0.0f;
         specular = u.material->specular * specFactor;
     }

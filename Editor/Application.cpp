@@ -1,5 +1,8 @@
 
 #include "Application.h"
+
+#include <execution>
+
 #include "Engine/Time.h"
 #include "Renderer/Emitter/ParticleMemoryManager.h"
 
@@ -68,9 +71,8 @@ void Application::update()
 
 
     auto& verts = m_particleManager.getMasterBuffer().getVertexBuffer();
-    SDL_Log("Particle count: %u", m_particleManager.getMasterBuffer().getTotalVertCount());
     uint32_t count = m_particleManager.getMasterBuffer().getTotalVertCount();
-    std::sort(verts.begin(), verts.end(),
+    std::sort(std::execution::par_unseq,verts.begin(), verts.end(),
         [&]( ParticleVertex& a, ParticleVertex& b) {
                 auto da = a.position - m_scene.camera.position;
                 auto db = b.position - m_scene.camera.position;

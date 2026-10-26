@@ -25,6 +25,7 @@ struct Worker {
     std::atomic<bool> stop = false;
     Maths::Vec2i tileMin;
     Maths::Vec2i tileMax;
+    uint8_t id = 0;
 };
 
 struct ScreenTriangle {
@@ -70,17 +71,21 @@ private:
     std::vector<uint32_t> m_framebuffer;
     std::vector<float>    m_zBuffer;
 
-    Worker m_workers[4];
+    std::vector<std::unique_ptr<Worker>> m_workers;
 
     std::vector<Maths::Vec4f> m_clipPositions;
     std::vector<Maths::Vec3f> m_worldNormals;
     std::vector<Maths::Vec3f> m_worldPositions;
     std::vector<ScreenTriangle> m_screenTriangles;
 
+    std::vector<std::vector<ScreenTriangle>> m_tileBins;
+
     std::vector<ScreenTriangle> m_opaqueTriangles;
     std::vector<ScreenTriangle> m_transparentTriangles;
 
     ParticleManager* m_particleManager;
+
+    uint32_t m_numWorkers = 0;
 
     void onResize(int32_t width, int32_t height);
     void workerLoop(Worker& w);
