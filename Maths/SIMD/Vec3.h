@@ -4,35 +4,25 @@
 
 namespace Maths::SIMD
 {
-    inline Vec3f Normalize(const Vec3f& v)
+    inline Vec3<__m256> Normalize8(const Vec3<__m256>& v)
     {
-        __m128 vec = _mm_set_ps(0.0f, v.z, v.y, v.x);
-        __m128 sq  = _mm_mul_ps(vec, vec);
-        __m128 shuf = _mm_shuffle_ps(sq, sq, _MM_SHUFFLE(2, 3, 0, 1));
-        __m128 sums = _mm_add_ps(sq, shuf);
-        shuf        = _mm_shuffle_ps(sums, sums, _MM_SHUFFLE(0, 1, 2, 3));
-        __m128 magSq = _mm_add_ps(sums, shuf); // même valeur dans les 4 lanes
-        __m128 inv        = _mm_rsqrt_ps(magSq);
-        __m128 normalized = _mm_mul_ps(vec, inv);
-        alignas(16) float out[4];
-        _mm_store_ps(out, normalized);
-        return Vec3f(out[0], out[1], out[2]);
+        __m256 sqX = _mm256_mul_ps(v.x, v.x);
+        __m256 sqY = _mm256_mul_ps(v.y, v.y);
+        __m256 sqZ = _mm256_mul_ps(v.z, v.z);
+
+
+
+
+        __m256 magSq = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(v.x, v.x), _mm256_mul_ps(v.y, v.y)), _mm256_mul_ps(v.z, v.z));
+        __m256 inv = _mm256_rsqrt_ps(magSq);
+        return { _mm256_mul_ps(v.x, inv), _mm256_mul_ps(v.y, inv), _mm256_mul_ps(v.z, inv) };
     }
 
 
-    inline float Dot(const Vec3f& a, const Vec3f& b)
+
+    inline __m256 Dot8(const Vec3<__m256>& a, const Vec3<__m256>& b)
     {
-        __m128 vecA = _mm_set_ps(0.0f, a.z, a.y, a.x);
-        __m128 vecB = _mm_set_ps(0.0f, b.z, b.y, b.x);
-        __m128 prod = _mm_mul_ps(vecA, vecB);
-        __m128 shuf = _mm_shuffle_ps(prod, prod, _MM_SHUFFLE(2, 3, 0, 1));
-        __m128 sums = _mm_add_ps(prod, shuf);
-        shuf        = _mm_shuffle_ps(sums, sums, _MM_SHUFFLE(0, 1, 2, 3));
-        __m128 dot = _mm_add_ps(sums, shuf); // même valeur dans les 4 lanes
-        alignas(16) float out[4];
-        _mm_store_ps(out, dot);
-        return out[0];
+        __m256 dot = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(a.x, b.x), _mm256_mul_ps(a.y, b.y)), _mm256_mul_ps(a.z, b.z));
+        return dot;
     }
-
-
 }

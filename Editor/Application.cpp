@@ -82,7 +82,7 @@ void Application::update()
                 });
     for (uint32_t i = 0; i < count; i++)
     {
-        m_renderer.drawParticle(verts[i], viewProj);
+        //m_renderer.drawParticle(verts[i], viewProj);
     }
 
 }

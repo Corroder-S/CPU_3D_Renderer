@@ -8,6 +8,8 @@
 #include "External/stb/stb_image.h"
 
 
+static constexpr float inv255 = 1.0f / 255.0f;
+
 struct Texture {
     int width = 0;
     int height = 0;
@@ -108,17 +110,64 @@ struct Texture {
         __m256i c11 = _mm256_i32gather_epi32((const int*)texPixels, idx11,4);
 
 
-        __m256i r =  ;
+        __m256 a00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 24), _mm256_set1_epi32(0xFF)));
+        __m256 a10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 24), _mm256_set1_epi32(0xFF)));
+        __m256 a01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 24), _mm256_set1_epi32(0xFF)));
+        __m256 a11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 24), _mm256_set1_epi32(0xFF)));
 
-        uint8_t r = static_cast<uint8_t>(((c00 >> 16) & 0xFF) * w00 + ((c10 >> 16) & 0xFF) * w10 + ((c01 >> 16) & 0xFF) * w01 + ((c11 >> 16) & 0xFF) * w11);
-        uint8_t g = static_cast<uint8_t>(((c00 >> 8) & 0xFF) * w00 + ((c10 >> 8) & 0xFF) * w10 + ((c01 >> 8) & 0xFF) * w01 + ((c11 >> 8) & 0xFF) * w11);
-        uint8_t b = static_cast<uint8_t>((c00 & 0xFF) * w00 + (c10 & 0xFF) * w10 + (c01 & 0xFF) * w01 + (c11 & 0xFF) * w11);
-        uint8_t a = static_cast<uint8_t>(((c00 >> 24) & 0xFF) * w00 + ((c10 >> 24) & 0xFF) * w10 + ((c01 >> 24) & 0xFF) * w01 + ((c11 >> 24) & 0xFF) * w11);
+        __m256 r00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 16), _mm256_set1_epi32(0xFF)));
+        __m256 r10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 16), _mm256_set1_epi32(0xFF)));
+        __m256 r01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 16), _mm256_set1_epi32(0xFF)));
+        __m256 r11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 16), _mm256_set1_epi32(0xFF)));
 
-        return (static_cast<uint32_t>(a) << 24) |
-            (static_cast<uint32_t>(r) << 16) |
-            (static_cast<uint32_t>(g) << 8) |
-            static_cast<uint32_t>(b);
+        __m256 g00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 8), _mm256_set1_epi32(0xFF)));
+        __m256 g10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 8), _mm256_set1_epi32(0xFF)));
+        __m256 g01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 8), _mm256_set1_epi32(0xFF)));
+        __m256 g11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 8), _mm256_set1_epi32(0xFF)));
+
+        __m256 b00 = _mm256_cvtepi32_ps(_mm256_and_si256(c00, _mm256_set1_epi32(0xFF)));
+        __m256 b10 = _mm256_cvtepi32_ps(_mm256_and_si256(c10, _mm256_set1_epi32(0xFF)));
+        __m256 b01 = _mm256_cvtepi32_ps(_mm256_and_si256(c01, _mm256_set1_epi32(0xFF)));
+        __m256 b11 = _mm256_cvtepi32_ps(_mm256_and_si256(c11, _mm256_set1_epi32(0xFF)));
+
+
+
+        __m256 a_c00 =  _mm256_mul_ps(a00, w00);
+        __m256 a_c10 =  _mm256_mul_ps(a10, w10);
+        __m256 a_c01 =  _mm256_mul_ps(a01, w01);
+        __m256 a_c11 =  _mm256_mul_ps(a11, w11);
+
+        __m256 r_c00 =  _mm256_mul_ps(r00, w00);
+        __m256 r_c10 =  _mm256_mul_ps(r10, w10);
+        __m256 r_c01 =  _mm256_mul_ps(r01, w01);
+        __m256 r_c11 =  _mm256_mul_ps(r11, w11);
+
+        __m256 g_c00 =  _mm256_mul_ps(g00, w00);
+        __m256 g_c10 =  _mm256_mul_ps(g10, w10);
+        __m256 g_c01 =  _mm256_mul_ps(g01, w01);
+        __m256 g_c11 =  _mm256_mul_ps(g11, w11);
+
+        __m256 b_c00 =  _mm256_mul_ps(b00, w00);
+        __m256 b_c10 =  _mm256_mul_ps(b10, w10);
+        __m256 b_c01 =  _mm256_mul_ps(b01, w01);
+        __m256 b_c11 =  _mm256_mul_ps(b11, w11);
+
+
+        __m256i r = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(r_c00, r_c10), _mm256_add_ps(r_c01, r_c11)));
+        __m256i g = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(g_c00, g_c10), _mm256_add_ps(g_c01, g_c11)));
+        __m256i b = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(b_c00, b_c10), _mm256_add_ps(b_c01, b_c11)));
+        __m256i a = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(a_c00, a_c10), _mm256_add_ps(a_c01, a_c11)));
+
+
+        __m256i aInt = _mm256_slli_epi32( a,24);
+        __m256i rInt = _mm256_slli_epi32( r,16);
+        __m256i gInt = _mm256_slli_epi32( g,8);
+
+
+
+        __m256i result = _mm256_or_si256(_mm256_or_si256(aInt, rInt), _mm256_or_si256(gInt, b));
+
+        return result;
     }
 };
 

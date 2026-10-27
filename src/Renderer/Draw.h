@@ -33,14 +33,14 @@ static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std:
     }
 }
 
-static inline int edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
+static inline float edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
 {
-    return (int) (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-static inline int edge_dxdy(int a, int b)
+static inline float edge_dxdy(int a, int b)
 {
-    return (int) (a - b);
+    return (a - b);
 }
 
 
@@ -57,7 +57,8 @@ static inline void drawTriangle(
     bool writeDepth = true)
 {
 
-
+    Maths::Vec3<__m256> L8 = { _mm256_set1_ps(light.direction.x), _mm256_set1_ps(light.direction.y), _mm256_set1_ps(light.direction.z) };
+    Maths::Vec3<__m256> C8 = { _mm256_set1_ps(uniforms.cameraPos.x), _mm256_set1_ps(uniforms.cameraPos.y), _mm256_set1_ps(uniforms.cameraPos.z) };
 
     int minX = std::max(renderMin.x, std::min({ (int)a.x, (int)b.x, (int)c.x }));
     int maxX = std::min(renderMax.x - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
@@ -66,19 +67,22 @@ static inline void drawTriangle(
 
     Maths::Vec3f minPos = { (float)minX, (float)minY, 0.0f };
 
-    int w0_row = edge(b, c, minPos);
-    int w1_row = edge(c, a, minPos);
-    int w2_row = edge(a, b, minPos);
+    int covered = ((maxX - minX) / 8 + 1) * 8;
 
-    int area = w0_row + w1_row + w2_row;
-    float invArea = 1.0f / (float)area;
 
-    int dw0_dx = edge_dxdy((int)b.y, (int)c.y);
-    int dw0_dy = edge_dxdy((int)c.x, (int)b.x);
-    int dw1_dx = edge_dxdy((int)c.y, (int)a.y);
-    int dw1_dy = edge_dxdy((int)a.x, (int)c.x);
-    int dw2_dx = edge_dxdy((int)a.y, (int)b.y);
-    int dw2_dy = edge_dxdy((int)b.x, (int)a.x);
+    float w0_row = edge(b, c, minPos);
+    float w1_row = edge(c, a, minPos);
+    float w2_row = edge(a, b, minPos);
+
+    float area = w0_row + w1_row + w2_row;
+    float invArea = 1.0f / area;
+
+    float dw0_dx = edge_dxdy(b.y, c.y);
+    float dw0_dy = edge_dxdy(c.x, b.x);
+    float dw1_dx = edge_dxdy(c.y, a.y);
+    float dw1_dy = edge_dxdy(a.x, c.x);
+    float dw2_dx = edge_dxdy(a.y, b.y);
+    float dw2_dy = edge_dxdy(b.x, a.x);
 
     float dfw0_dx = dw0_dx * invArea, dfw0_dy = dw0_dy * invArea;
     float dfw1_dx = dw1_dx * invArea, dfw1_dy = dw1_dy * invArea;
@@ -132,37 +136,30 @@ static inline void drawTriangle(
     float dpzw_dy = dfw0_dy * wp0.z * invW.x + dfw1_dy * wp1.z * invW.y + dfw2_dy * wp2.z * invW.z;
 
     int idx = minY * RENDER_WIDTH + minX;
-    for (int y = minY; y <= maxY; y++)
+    for (uint32_t y = minY; y <= maxY; y++)
     {
 
-        __m256 w0 = _mm256_set_ps(w0_row, w0_row + 1 * dw0_dx , w0_row+ 2 * dw0_dx, w0_row+ 3 * dw0_dx, w0_row + 4 * dw0_dx, w0_row + 5 * dw0_dx, w0_row + 6 * dw0_dx, w0_row + 7 * dw0_dx);
-        __m256 w1 = _mm256_set_ps(w1_row , w1_row + 1 * dw1_dx, w1_row + 2 * dw1_dx, w1_row + 3 * dw1_dx, w1_row + 4 * dw1_dx, w1_row + 5 * dw1_dx, w1_row + 6 * dw1_dx, w1_row + 7 * dw1_dx);
-        __m256 w2 = _mm256_set_ps(w2_row, w2_row + 1 * dw2_dx, w2_row + 2 * dw2_dx, w2_row + 3 * dw2_dx, w2_row + 4 * dw2_dx, w2_row + 5 * dw2_dx, w2_row + 6 * dw2_dx, w2_row + 7 * dw2_dx);
+        __m256 w0  = _mm256_set_ps(w0_row + 7*dw0_dx, w0_row + 6*dw0_dx, w0_row + 5*dw0_dx, w0_row + 4*dw0_dx, w0_row + 3*dw0_dx, w0_row + 2*dw0_dx, w0_row + 1*dw0_dx, w0_row);
+        __m256 w1  = _mm256_set_ps(w1_row + 7*dw1_dx, w1_row + 6*dw1_dx, w1_row + 5*dw1_dx, w1_row + 4*dw1_dx, w1_row + 3*dw1_dx, w1_row + 2*dw1_dx, w1_row + 1*dw1_dx, w1_row);
+        __m256 w2  = _mm256_set_ps(w2_row + 7*dw2_dx, w2_row + 6*dw2_dx, w2_row + 5*dw2_dx, w2_row + 4*dw2_dx, w2_row + 3*dw2_dx, w2_row + 2*dw2_dx, w2_row + 1*dw2_dx, w2_row);
 
-        __m256 uw = _mm256_set_ps(uw_row, uw_row + 1 * duw_dx, uw_row + 2 * duw_dx, uw_row + 3 * duw_dx, uw_row + 4 * duw_dx, uw_row + 5 * duw_dx, uw_row + 6 * duw_dx, uw_row + 7 * duw_dx);
-        __m256 vw = _mm256_set_ps(vw_row, vw_row + 1 * duw_dy, vw_row + 2 * duw_dy, vw_row + 3 * duw_dy, vw_row + 4 * duw_dy, vw_row + 5 * duw_dy, vw_row + 6 * duw_dy, vw_row + 7 * duw_dy);
-        __m256 iw = _mm256_set_ps(iw_row, iw_row + 1 * diw_dx, iw_row + 2 * diw_dx, iw_row + 3 * diw_dx, iw_row + 4 * diw_dx, iw_row + 5 * diw_dx, iw_row + 6 * diw_dx, iw_row + 7 * diw_dx);
+        __m256 uw  = _mm256_set_ps(uw_row + 7*duw_dx, uw_row + 6*duw_dx, uw_row + 5*duw_dx, uw_row + 4*duw_dx, uw_row + 3*duw_dx, uw_row + 2*duw_dx, uw_row + 1*duw_dx, uw_row);
+        __m256 vw  = _mm256_set_ps(vw_row + 7*dvw_dx, vw_row + 6*dvw_dx, vw_row + 5*dvw_dx, vw_row + 4*dvw_dx, vw_row + 3*dvw_dx, vw_row + 2*dvw_dx, vw_row + 1*dvw_dx, vw_row);
+        __m256 iw  = _mm256_set_ps(iw_row + 7*diw_dx, iw_row + 6*diw_dx, iw_row + 5*diw_dx, iw_row + 4*diw_dx, iw_row + 3*diw_dx, iw_row + 2*diw_dx, iw_row + 1*diw_dx, iw_row);
 
-        __m256 z = _mm256_set_ps(z_row, z_row + 1 * dz_dx, z_row + 2 * dz_dx, z_row + 3 * dz_dx, z_row + 4 * dz_dx, z_row + 5 * dz_dx, z_row + 6 * dz_dx, z_row + 7 * dz_dx);
+        __m256 z   = _mm256_set_ps(z_row + 7*dz_dx, z_row + 6*dz_dx, z_row + 5*dz_dx, z_row + 4*dz_dx, z_row + 3*dz_dx, z_row + 2*dz_dx, z_row + 1*dz_dx, z_row);
 
-        __m256 nx = _mm256_set_ps(nx_row, nx_row + 1 * dnx_dx, nx_row + 2 * dnx_dx, nx_row + 3 * dnx_dx, nx_row + 4 * dnx_dx, nx_row + 5 * dnx_dx, nx_row + 6 * dnx_dx, nx_row + 7 * dnx_dx);
-        __m256 ny = _mm256_set_ps(ny_row, ny_row + 1 * dny_dx, ny_row + 2 * dny_dx, ny_row + 3 * dny_dx, ny_row + 4 * dny_dx, ny_row + 5 * dny_dx, ny_row + 6 * dny_dx, ny_row + 7 * dny_dx);
-        __m256 nz = _mm256_set_ps(nz_row, nz_row + 1 * dnz_dx, nz_row + 2 * dnz_dx, nz_row + 3 * dnz_dx, nz_row + 4 * dnz_dx, nz_row + 5 * dnz_dx, nz_row + 6 * dnz_dx, nz_row + 7 * dnz_dx);
+        __m256 nx  = _mm256_set_ps(nx_row + 7*dnx_dx, nx_row + 6*dnx_dx, nx_row + 5*dnx_dx, nx_row + 4*dnx_dx, nx_row + 3*dnx_dx, nx_row + 2*dnx_dx, nx_row + 1*dnx_dx, nx_row);
+        __m256 ny  = _mm256_set_ps(ny_row + 7*dny_dx, ny_row + 6*dny_dx, ny_row + 5*dny_dx, ny_row + 4*dny_dx, ny_row + 3*dny_dx, ny_row + 2*dny_dx, ny_row + 1*dny_dx, ny_row);
+        __m256 nz  = _mm256_set_ps(nz_row + 7*dnz_dx, nz_row + 6*dnz_dx, nz_row + 5*dnz_dx, nz_row + 4*dnz_dx, nz_row + 3*dnz_dx, nz_row + 2*dnz_dx, nz_row + 1*dnz_dx, nz_row);
 
-        __m256 pxw = _mm256_set_ps(pxw_row, pxw_row + 1 * dpxw_dx, pxw_row + 2 * dpxw_dx, pxw_row + 3 * dpxw_dx, pxw_row + 4 * dpxw_dx, pxw_row + 5 * dpxw_dx, pxw_row + 6 * dpxw_dx, pxw_row + 7 * dpxw_dx);
-        __m256 pyw = _mm256_set_ps(pyw_row, pyw_row + 1 * dpyw_dx, pyw_row + 2 * dpyw_dx, pyw_row + 3 * dpyw_dx, pyw_row + 4 * dpyw_dx, pyw_row + 5 * dpyw_dx, pyw_row + 6 * dpyw_dx, pyw_row + 7 * dpyw_dx);
-        __m256 pzw = _mm256_set_ps(pzw_row, pzw_row + 1 * dpzw_dx, pzw_row + 2 * dpzw_dx, pzw_row + 3 * dpzw_dx, pzw_row + 4 * dpzw_dx, pzw_row + 5 * dpzw_dx, pzw_row + 6 * dpzw_dx, pzw_row + 7 * dpzw_dx);
-
-
+        __m256 pxw = _mm256_set_ps(pxw_row + 7*dpxw_dx, pxw_row + 6*dpxw_dx, pxw_row + 5*dpxw_dx, pxw_row + 4*dpxw_dx, pxw_row + 3*dpxw_dx, pxw_row + 2*dpxw_dx, pxw_row + 1*dpxw_dx, pxw_row);
+        __m256 pyw = _mm256_set_ps(pyw_row + 7*dpyw_dx, pyw_row + 6*dpyw_dx, pyw_row + 5*dpyw_dx, pyw_row + 4*dpyw_dx, pyw_row + 3*dpyw_dx, pyw_row + 2*dpyw_dx, pyw_row + 1*dpyw_dx, pyw_row);
+        __m256 pzw = _mm256_set_ps(pzw_row + 7*dpzw_dx, pzw_row + 6*dpzw_dx, pzw_row + 5*dpzw_dx, pzw_row + 4*dpzw_dx, pzw_row + 3*dpzw_dx, pzw_row + 2*dpzw_dx, pzw_row + 1*dpzw_dx, pzw_row);
 
 
-        //int w0 = w0_row, w1 = w1_row, w2 = w2_row;
-        //float uw = uw_row, vw = vw_row, iw = iw_row;
-        //float z = z_row;
-        //float nx = nx_row, ny = ny_row, nz = nz_row;
-        //float pxw = pxw_row, pyw = pyw_row, pzw = pzw_row;
 
-        for (int x = minX; x <= maxX; x+=8)
+        for (uint32_t x = minX; x <= maxX; x+=8)
         {
             __m256 orResult = _mm256_or_ps(_mm256_or_ps(w0, w1), w2);
             __m256 triMask = _mm256_cmp_ps(orResult, _mm256_setzero_ps(), _CMP_GE_OS);
@@ -172,99 +169,102 @@ static inline void drawTriangle(
 
             __m256 finalMask = _mm256_and_ps(triMask, depthMask);
 
-            if (_mm256_testz_ps(finalMask, finalMask))
-                continue;
-
-            _mm256_maskstore_ps(&zbuffer[idx], _mm256_castps_si256(finalMask), z);
-
-            __m256  inv_iw = _mm256_div_ps(_mm256_set1_ps(1.0f), iw);
 
 
-
-            __m256 u = _mm256_mul_ps(uw, inv_iw);
-            __m256 v = _mm256_mul_ps(vw, inv_iw);
-            __m256 worldPosX = _mm256_mul_ps(pxw, inv_iw);
-            __m256 worldPosY = _mm256_mul_ps(pyw, inv_iw);
-            __m256 worldPosZ = _mm256_mul_ps(pzw, inv_iw);
-
-            FragmentInput frag;
-
-            frag.uv = { u, v };
-            frag.normal = { nx, ny, nz };
-            frag.worldPos = { worldPosX, worldPosY, worldPosZ };
-            Color8 color = evaluateBlinnPhong(frag, uniforms, light.direction);
-
-
-
-            //if ((w0 | w1 | w2) >= 0 && z <= zbuffer[idx])
-            //{
-                //float inv_iw = 1.0f / iw;
-
-                FragmentInput frag;
-                frag.uv = { uw * inv_iw, vw * inv_iw };
-                frag.normal = { nx, ny, nz };
-                frag.worldPos = { pxw * inv_iw, pyw * inv_iw, pzw * inv_iw };
-
-                Color color = evaluateBlinnPhong(frag, uniforms, light.direction);
-
-                if (color.a < 1.0f)
-                {
-                    uint32_t dst = framebuffer[idx];
-                    uint8_t dr = (dst >> 16) & 0xFF;
-                    uint8_t dg = (dst >> 8) & 0xFF;
-                    uint8_t db = dst & 0xFF;
-
-                    uint8_t sr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
-                    uint8_t sg = static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f));
-                    uint8_t sb = static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f));
-                    float a = color.a;
-
-                    uint8_t outR = static_cast<uint8_t>(sr * a + dr * (1.0f - a));
-                    uint8_t outG = static_cast<uint8_t>(sg * a + dg * (1.0f - a));
-                    uint8_t outB = static_cast<uint8_t>(sb * a + db * (1.0f - a));
-
-                    framebuffer[idx] = (0xFFu << 24) | (outR << 16) | (outG << 8) | outB;
-                }
-                else
-                {
-                    framebuffer[idx] = color.toRGBA32();
-                }
-
+            if (!_mm256_testz_ps(finalMask, finalMask))
+            {
                 if (writeDepth)
                 {
-                    zbuffer[idx] = z;
+                    _mm256_maskstore_ps(&zbuffer[idx], _mm256_castps_si256(finalMask), z);
                 }
+
+                __m256  inv_iw = _mm256_div_ps(_mm256_set1_ps(1.0f), iw);
+
+                __m256 u = _mm256_mul_ps(uw, inv_iw);
+                __m256 v = _mm256_mul_ps(vw, inv_iw);
+                __m256 worldPosX = _mm256_mul_ps(pxw, inv_iw);
+                __m256 worldPosY = _mm256_mul_ps(pyw, inv_iw);
+                __m256 worldPosZ = _mm256_mul_ps(pzw, inv_iw);
+
+                FragmentInput_8 frag;
+
+                frag.uv = { u, v };
+                frag.normal = { nx, ny, nz };
+                frag.worldPos = { worldPosX, worldPosY, worldPosZ };
+
+
+
+                Color8 color = evaluateBlinnPhong_8(frag, uniforms, L8, C8);
+
+
+                __m256i dst = _mm256_loadu_si256((__m256i*)&framebuffer[idx]);
+
+                __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
+                __m256 dstG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 8), _mm256_set1_epi32(0xFF)));
+                __m256 dstB = _mm256_cvtepi32_ps(_mm256_and_si256(dst, _mm256_set1_epi32(0xFF)));
+
+                dstR = _mm256_mul_ps(dstR, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
+                dstG = _mm256_mul_ps(dstG, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
+                dstB = _mm256_mul_ps(dstB, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
+
+                dstR = _mm256_add_ps(dstR, _mm256_mul_ps(_mm256_mul_ps(color.r, _mm256_set1_ps(255.0f)), color.a));
+                dstG = _mm256_add_ps(dstG, _mm256_mul_ps(_mm256_mul_ps(color.g, _mm256_set1_ps(255.0f)), color.a));
+                dstB = _mm256_add_ps(dstB, _mm256_mul_ps(_mm256_mul_ps(color.b, _mm256_set1_ps(255.0f)), color.a));
+
+
+                __m256i ri = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstR, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+                __m256i gi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstG, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+                __m256i bi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstB, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+                __m256i ai = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(_mm256_mul_ps(color.a, _mm256_set1_ps(255.0f)), _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+
+                __m256i packed = _mm256_or_si256(
+                    _mm256_or_si256(_mm256_slli_epi32(ai, 24), _mm256_slli_epi32(ri, 16)),
+                    _mm256_or_si256(_mm256_slli_epi32(gi, 8), bi)
+                );
+
+                _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(finalMask), packed);
             }
 
-            w0 += dw0_dx; w1 += dw1_dx; w2 += dw2_dx;
-            z += dz_dx;
-            uw += duw_dx; vw += dvw_dx; iw += diw_dx;
-            nx += dnx_dx; ny += dny_dx; nz += dnz_dx;
-            pxw += dpxw_dx; pyw += dpyw_dx; pzw += dpzw_dx;
+            w0 = _mm256_add_ps(w0, _mm256_set1_ps(dw0_dx*8));
+            w1 = _mm256_add_ps(w1, _mm256_set1_ps(dw1_dx*8));
+            w2 = _mm256_add_ps(w2, _mm256_set1_ps(dw2_dx*8));
+            z = _mm256_add_ps(z, _mm256_set1_ps(dz_dx*8));
+            uw = _mm256_add_ps(uw, _mm256_set1_ps(duw_dx*8));
+            vw = _mm256_add_ps(vw, _mm256_set1_ps(dvw_dx*8));
+            iw = _mm256_add_ps(iw, _mm256_set1_ps(diw_dx*8));
+            nx = _mm256_add_ps(nx, _mm256_set1_ps(dnx_dx*8));
+            ny = _mm256_add_ps(ny, _mm256_set1_ps(dny_dx*8));
+            nz = _mm256_add_ps(nz, _mm256_set1_ps(dnz_dx*8));
+            pxw = _mm256_add_ps(pxw, _mm256_set1_ps(dpxw_dx*8));
+            pyw = _mm256_add_ps(pyw, _mm256_set1_ps(dpyw_dx*8));
+            pzw = _mm256_add_ps(pzw, _mm256_set1_ps(dpzw_dx*8));
 
-            idx++;
+            idx+= 8;
         }
 
-        idx += RENDER_WIDTH - (maxX - minX + 1);
+        idx += RENDER_WIDTH - covered;
         z_row += dz_dy;
         uw_row += duw_dy; vw_row += dvw_dy; iw_row += diw_dy;
         nx_row += dnx_dy; ny_row += dny_dy; nz_row += dnz_dy;
         pxw_row += dpxw_dy; pyw_row += dpyw_dy; pzw_row += dpzw_dy;
         w0_row += dw0_dy; w1_row += dw1_dy; w2_row += dw2_dy;
     }
+
+
 }
+
 
 static inline void drawText(
     const Font& font,
     const std::string& text,
-    int posX, int posY,
+    uint32_t posX, uint32_t posY,
     const Color& color,
     std::vector<uint32_t>& framebuffer,
-    int fbWidth, int fbHeight)
+    uint32_t fbWidth, uint32_t fbHeight)
 {
     const auto& alphaAtlas = font.getAtlasAlpha();
-    int atlasW = font.getAtlasWidth();
-    int atlasH = font.getAtlasHeight();
+    uint32_t atlasW = font.getAtlasWidth();
+    uint32_t atlasH = font.getAtlasHeight();
     if (alphaAtlas.empty()) return;
 
     uint8_t cr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
@@ -285,28 +285,28 @@ static inline void drawText(
         GlyphQuad q;
         font.getBakedQuad(c, curX, curY, q);
 
-        int w = q.x1 - q.x0;
-        int h = q.y1 - q.y0;
+        uint32_t w = q.x1 - q.x0;
+        uint32_t h = q.y1 - q.y0;
 
-        for (int dy = 0; dy < h; ++dy) {
-            int screenY = q.y0 + dy;
+        for (uint32_t dy = 0; dy < h; ++dy) {
+            uint32_t screenY = q.y0 + dy;
             if (screenY < 0 || screenY >= fbHeight) continue;
 
             float v = q.t0 + (q.t1 - q.t0) * (static_cast<float>(dy) / h);
-            int texY = static_cast<int>(v * atlasH);
+            uint32_t texY = static_cast<uint32_t>(v * atlasH);
 
-            for (int dx = 0; dx < w; ++dx) {
-                int screenX = q.x0 + dx;
+            for (uint32_t dx = 0; dx < w; ++dx) {
+                uint32_t screenX = q.x0 + dx;
                 if (screenX < 0 || screenX >= fbWidth) continue;
 
                 float u = q.s0 + (q.s1 - q.s0) * (static_cast<float>(dx) / w);
-                int texX = static_cast<int>(u * atlasW);
+                uint32_t texX = static_cast<uint32_t>(u * atlasW);
 
                 uint8_t alpha = alphaAtlas[texY * atlasW + texX];
                 if (alpha == 0) continue;
 
                 float finalAlpha = (alpha / 255.0f) * (ca / 255.0f);
-                int dstIdx = screenY * fbWidth + screenX;
+                uint32_t dstIdx = screenY * fbWidth + screenX;
                 uint32_t dstColor = framebuffer[dstIdx];
 
                 uint8_t dr = (dstColor >> 16) & 0xFF;
