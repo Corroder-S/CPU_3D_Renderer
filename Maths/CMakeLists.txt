@@ -11,3 +11,11 @@ add_library(Maths STATIC
 target_include_directories(Maths PUBLIC
     ${CMAKE_SOURCE_DIR}
 )
+
+if (MSVC)
+    set(SIMD_FLAGS /arch:AVX2)
+else()
+    set(SIMD_FLAGS -mavx2)
+endif()
+
+target_compile_options(Maths PUBLIC ${SIMD_FLAGS})
