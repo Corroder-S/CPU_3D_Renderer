@@ -21,11 +21,12 @@ struct Worker {
     std::mutex mutex;
     std::condition_variable cv;
     std::condition_variable finished;
-    std::atomic<bool> hasWork = false;
-    std::atomic<bool> stop = false;
-    Maths::Vec2i tileMin;
-    Maths::Vec2i tileMax;
-    uint8_t id = 0;
+    bool hasWork = false;
+    bool stop = false;
+};
+
+struct Tile {
+    int x_min, y_min, x_max, y_max;
 };
 
 struct ScreenTriangle {
@@ -71,14 +72,12 @@ private:
     std::vector<uint32_t> m_framebuffer;
     std::vector<float>    m_zBuffer;
 
-    std::vector<std::unique_ptr<Worker>> m_workers;
 
     std::vector<Maths::Vec4f> m_clipPositions;
     std::vector<Maths::Vec3f> m_worldNormals;
     std::vector<Maths::Vec3f> m_worldPositions;
     std::vector<ScreenTriangle> m_screenTriangles;
 
-    std::vector<std::vector<ScreenTriangle>> m_tileBins;
 
     std::vector<ScreenTriangle> m_opaqueTriangles;
     std::vector<ScreenTriangle> m_transparentTriangles;
@@ -86,11 +85,14 @@ private:
     ParticleManager* m_particleManager;
 
     uint32_t m_numWorkers = 0;
+    std::vector<std::unique_ptr<Worker>> m_workers;
 
+    std::vector<std::vector<ScreenTriangle>> m_tileBins;
+    std::atomic<uint32_t> m_tileCounter{0};
+    std::vector<Tile> m_tiles;
     const int TILE_SIZE = 160;
-    int tilesX = (RENDER_WIDTH + 159) / 160;
-    int tilesY = (RENDER_HEIGHT + 159) / 160;
 
-    void onResize(int32_t width, int32_t height);
+    void onResize(uint32_t width, uint32_t height);
+    void initTiles();
     void workerLoop(Worker& w);
 };
