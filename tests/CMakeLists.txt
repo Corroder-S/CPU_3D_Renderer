@@ -7,10 +7,12 @@ add_executable(MathStarterTests
     Matrix4x4Tests.cpp
     VecBatchTest.cpp
     MatBatchTest.cpp
-    
-    
+    ColorTests.cpp
+    ClippingTests.cpp
     ASM_Vec3Tests.cpp
- "ColorTests.cpp"  "ClippingTests.cpp" "ShaderTests.cpp")
+    ShaderTests.cpp
+    TransformTests.cpp 
+    MVPTests.cpp)
 
 target_link_libraries(MathStarterTests PRIVATE Maths GTest::gtest_main)
 
