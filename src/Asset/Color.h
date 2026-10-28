@@ -44,6 +44,16 @@ struct Color {
             static_cast<uint32_t>(ub);
     }
 
+    Color clamp() const
+    {
+        return Color{
+            std::clamp(r, 0.0f, 1.0f),
+            std::clamp(g, 0.0f, 1.0f),
+            std::clamp(b, 0.0f, 1.0f),
+            std::clamp(a, 0.0f, 1.0f)
+        };
+    }
+
     static const Color Red;
     static const Color Green;
     static const Color Blue;
