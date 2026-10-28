@@ -6,6 +6,7 @@ add_library(Maths STATIC
     ASM/Vec3.asm
     ASM/Vec3.h
         SIMD/Vec3.h
+        SIMD/Utils.h
 )
 
 target_include_directories(Maths PUBLIC

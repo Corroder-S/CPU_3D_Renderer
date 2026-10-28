@@ -87,6 +87,10 @@ private:
 
     uint32_t m_numWorkers = 0;
 
+    const int TILE_SIZE = 160;
+    int tilesX = (RENDER_WIDTH + 159) / 160;
+    int tilesY = (RENDER_HEIGHT + 159) / 160;
+
     void onResize(int32_t width, int32_t height);
     void workerLoop(Worker& w);
 };

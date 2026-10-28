@@ -7,6 +7,7 @@
 #include "Asset/Color.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
+#include "Maths/SIMD/Utils.h"
 #include "Maths/SIMD/Vec3.h"
 
 struct FragmentInput {
@@ -125,13 +126,10 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
 
     __m256 NdotH = _mm256_max_ps(_mm256_setzero_ps(), Maths::SIMD::Dot8(N, H));
 
-    alignas(32) float ndoth[8], result[8];
-    _mm256_store_ps(ndoth, NdotH);
-    for (int i = 0; i < 8; i++)
-    {
-        result[i] = (ndoth[i] > 0.0f) ? std::exp2(u.material->shininess * std::log2(ndoth[i])) : 0.0f;
-    }
-    __m256 specFactor = _mm256_load_ps(result);
+    __m256 mask = _mm256_cmp_ps(NdotH, _mm256_setzero_ps(), _CMP_GT_OS);
+    __m256 logVal = log2_ps(NdotH);
+    __m256 specFactor = exp2_ps(_mm256_mul_ps(_mm256_set1_ps(u.material->shininess), logVal));
+    specFactor = _mm256_and_ps(specFactor, mask);
 
     specular = {_mm256_set1_ps(u.material->specular.r), _mm256_set1_ps(u.material->specular.g), _mm256_set1_ps(u.material->specular.b), _mm256_set1_ps(u.material->specular.a) };
 

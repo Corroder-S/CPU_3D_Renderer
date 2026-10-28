@@ -178,7 +178,7 @@ static inline void drawTriangle(
                     _mm256_maskstore_ps(&zbuffer[idx], _mm256_castps_si256(finalMask), z);
                 }
 
-                __m256  inv_iw = _mm256_div_ps(_mm256_set1_ps(1.0f), iw);
+                __m256 inv_iw = _mm256_rcp_ps(iw);
 
                 __m256 u = _mm256_mul_ps(uw, inv_iw);
                 __m256 v = _mm256_mul_ps(vw, inv_iw);
