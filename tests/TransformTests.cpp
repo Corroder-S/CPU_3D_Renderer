@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "src/Scene/transform.h"
+#include "Scene/transform.h"
 
 TEST(TransformTests, CombineTRS)
 {

@@ -12,12 +12,14 @@ add_executable(MathStarterTests
     ASM_Vec3Tests.cpp
     ShaderTests.cpp
     TransformTests.cpp 
-    MVPTests.cpp)
+    MVPTests.cpp
+    RasterizationTests.cpp)
 
 target_link_libraries(MathStarterTests PRIVATE Maths GTest::gtest_main)
 
 target_include_directories(MathStarterTests PRIVATE 
     ${CMAKE_SOURCE_DIR} 
+    ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

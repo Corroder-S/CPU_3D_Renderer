@@ -22,7 +22,6 @@ struct FragmentInput_8 {
     Maths::Vec3<__m256> worldPos;
 };
 
-
 struct ShaderUniforms {
     const Material* material = nullptr;
     const Light* light = nullptr;
@@ -51,9 +50,9 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     float NdotL = std::max(0.0f, Maths::Dot(N, L));
     Color diffuse = albedo * NdotL;
 
-    Color specular;
+    Color specular = Color(0.0f, 0.0f, 0.0f, 0.0f);
 
-    if (NdotL > 0.0f) {
+    if (NdotL > 0.0f && (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f)) {
         Maths::Vec3f dirV = u.cameraPos - in.worldPos;
         if (dirV.MagnitudeSquared() > 0.0f) {
             Maths::Vec3f V = Maths::Normalize(dirV);
@@ -75,8 +74,6 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     return finalColor;
 }
 
-
-
 inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUniforms& u, Maths::Vec3<__m256> L, Maths::Vec3<__m256> C)
 {
     if (!u.material || !u.light)
@@ -84,9 +81,7 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
         return Color8{ _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f) };
     }
 
-
     Color8 albedo = { _mm256_set1_ps(u.material->diffuse.r), _mm256_set1_ps(u.material->diffuse.g), _mm256_set1_ps(u.material->diffuse.b), _mm256_set1_ps(u.material->diffuse.a) };
-
 
     if (u.material->texture) {
         __m256i texel = u.material->texture->sampleBilinear_8(in.uv.x, in.uv.y);
@@ -106,9 +101,6 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
 
     Maths::Vec3<__m256> N = Maths::SIMD::Normalize8(in.normal);
 
-
-
-
     Color ambLight = u.material->ambient * u.light->ambient;
     Color8 ambLight8 = { _mm256_set1_ps(ambLight.r), _mm256_set1_ps(ambLight.g), _mm256_set1_ps(ambLight.b), _mm256_set1_ps(ambLight.a) };
     Color8 ambient = albedo * ambLight8;
@@ -117,27 +109,37 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
 
     Color8 diffuse = albedo * NdotL;
 
-    Color8 specular;
+    Color8 specular = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps() };
 
-    __m256 specMask = _mm256_cmp_ps(NdotL, _mm256_setzero_ps(), _CMP_GT_OS);
+    if (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f)
+    {
+        __m256 specMask = _mm256_cmp_ps(NdotL, _mm256_setzero_ps(), _CMP_GT_OS);
 
-    Maths::Vec3<__m256> V = Maths::SIMD::Normalize8({_mm256_sub_ps( C.x,in.worldPos.x), _mm256_sub_ps(C.y, in.worldPos.y), _mm256_sub_ps(C.z, in.worldPos.z) });
-    Maths::Vec3<__m256> H = Maths::SIMD::Normalize8({ _mm256_add_ps(L.x, V.x), _mm256_add_ps(L.y, V.y), _mm256_add_ps(L.z, V.z) });
+        Maths::Vec3<__m256> dirV = { _mm256_sub_ps(C.x, in.worldPos.x), _mm256_sub_ps(C.y, in.worldPos.y), _mm256_sub_ps(C.z, in.worldPos.z) };
+        __m256 vMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirV, dirV), _mm256_setzero_ps(), _CMP_GT_OS);
+        Maths::Vec3<__m256> V = Maths::SIMD::Normalize8(dirV);
 
-    __m256 NdotH = _mm256_max_ps(_mm256_setzero_ps(), Maths::SIMD::Dot8(N, H));
+        Maths::Vec3<__m256> dirH = { _mm256_add_ps(L.x, V.x), _mm256_add_ps(L.y, V.y), _mm256_add_ps(L.z, V.z) };
+        __m256 hMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirH, dirH), _mm256_setzero_ps(), _CMP_GT_OS);
+        Maths::Vec3<__m256> H = Maths::SIMD::Normalize8(dirH);
 
-    __m256 mask = _mm256_cmp_ps(NdotH, _mm256_setzero_ps(), _CMP_GT_OS);
-    __m256 logVal = log2_ps(NdotH);
-    __m256 specFactor = exp2_ps(_mm256_mul_ps(_mm256_set1_ps(u.material->shininess), logVal));
-    specFactor = _mm256_and_ps(specFactor, mask);
+        specMask = _mm256_and_ps(specMask, _mm256_and_ps(vMask, hMask));
 
-    specular = {_mm256_set1_ps(u.material->specular.r), _mm256_set1_ps(u.material->specular.g), _mm256_set1_ps(u.material->specular.b), _mm256_set1_ps(u.material->specular.a) };
+        __m256 NdotH = _mm256_max_ps(_mm256_set1_ps(1e-8f), Maths::SIMD::Dot8(N, H));
 
-    specular = specular * specFactor;
+        __m256 mask = _mm256_cmp_ps(NdotH, _mm256_setzero_ps(), _CMP_GT_OS);
+        __m256 logVal = log2_ps(NdotH);
+        __m256 specFactor = exp2_ps(_mm256_mul_ps(_mm256_set1_ps(u.material->shininess), logVal));
+        specFactor = _mm256_and_ps(specFactor, mask);
 
-    specular.r = _mm256_and_ps(specular.r, specMask);
-    specular.g = _mm256_and_ps(specular.g, specMask);
-    specular.b = _mm256_and_ps(specular.b, specMask);
+        specular = { _mm256_set1_ps(u.material->specular.r), _mm256_set1_ps(u.material->specular.g), _mm256_set1_ps(u.material->specular.b), _mm256_set1_ps(u.material->specular.a) };
+        specular = specular * specFactor;
+
+        specular.r = _mm256_and_ps(specular.r, specMask);
+        specular.g = _mm256_and_ps(specular.g, specMask);
+        specular.b = _mm256_and_ps(specular.b, specMask);
+        specular.a = _mm256_and_ps(specular.a, specMask);
+    }
 
     Color8 finalColor = ambient + diffuse + specular;
 

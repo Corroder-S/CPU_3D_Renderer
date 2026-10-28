@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "src/Asset/Color.h"
+#include "Asset/Color.h"
 #include "Maths/Vec3.h"
 
 TEST(ColorTests, DefaultIsBlackOrTransparent)
