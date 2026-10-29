@@ -67,11 +67,14 @@ add_executable(cpu_renderer_sdl
         src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
         src/Renderer/Emitter/ParticleManager.h
         src/Renderer/Emitter/ParticleManager.cpp
-)
+ "src/Renderer/Emitter/WorkerPool.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
-target_compile_options(cpu_renderer_sdl PRIVATE /O2 /fp:fast)
+target_compile_options(cpu_renderer_sdl PRIVATE
+    $<$<CONFIG:Release>:/O2 /fp:fast /arch:AVX2>
+    $<$<CONFIG:Debug>:/Od /arch:AVX2>
+)
 
 
 target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

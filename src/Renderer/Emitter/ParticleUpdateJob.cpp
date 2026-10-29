@@ -15,7 +15,7 @@ void ParticleUpdateJob::execute()
 
         if (!system->isLooping() && system->isComplete())
         {
-            auto* pool = ParticleMemoryManager::GetInstance()->getMemoryPool(poolIndex);
+            auto* pool = ParticleMemoryManager::GetInstance().getMemoryPool(poolIndex);
             pool->FreeSystem(system);
             ParticleSystems->erase(ParticleSystems->begin() + i);
             i--;

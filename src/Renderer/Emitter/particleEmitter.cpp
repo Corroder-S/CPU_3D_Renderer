@@ -19,7 +19,7 @@ void particleEmitter::destroyParticle()
 
 void particleEmitter::emit()
 {
-    Particle* p = ParticleMemoryManager::GetInstance()->getMemoryPool(m_poolId)->GetNewParticle();
+    Particle* p = ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId)->GetNewParticle();
     if (p == nullptr) return;
     p->position  = Position;
 
@@ -72,7 +72,7 @@ void particleEmitter::freeDeadParticles()
         Particle* particle = *it;
         if (particle->life <= 0.0f)
         {
-            ParticleMemoryManager::GetInstance()->getMemoryPool(m_poolId)->FreeParticle(particle);
+            ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId)->FreeParticle(particle);
             it = m_activeParticles.erase(it);
         }
         else
@@ -84,6 +84,13 @@ void particleEmitter::freeDeadParticles()
 
 void particleEmitter::reset()
 {
+
+    if (m_poolId != 0)
+    {
+        auto pool = ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId);
+        for (auto* particle : m_activeParticles)
+            pool->FreeParticle(particle);
+    }
     m_activeParticles.clear();
     m_freeParticles.clear();
     m_poolId = 0;
