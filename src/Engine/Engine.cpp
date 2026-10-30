@@ -47,6 +47,10 @@ int Engine::run()
         {
             if (event.type == SDL_EVENT_QUIT)
                 m_isRunning = false;
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT)
+                SDL_SetWindowRelativeMouseMode(m_window, true);
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT)
+                SDL_SetWindowRelativeMouseMode(m_window, false);
         }
 
         Time::update();
