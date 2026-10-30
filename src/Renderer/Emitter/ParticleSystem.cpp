@@ -48,9 +48,10 @@ bool particleSystem::isLooping() const
 
 void particleSystem::reset()
 {
+    auto pool = ParticleMemoryManager::GetInstance()->getMemoryPool(m_poolID);
     for (auto& emitter : particleEmitters)
     {
-        emitter->reset();
+        pool->FreeEmitter(emitter);
     }
     particleEmitters.clear();
     m_poolID = 0;

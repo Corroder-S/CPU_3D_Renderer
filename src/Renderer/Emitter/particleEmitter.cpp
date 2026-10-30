@@ -1,7 +1,7 @@
 #include "particleEmitter.h"
 
 #include <random>
-
+#include <algorithm>
 #include "ParticleMemoryManager.h"
 #include "Maths/Utils.h"
 
@@ -25,10 +25,19 @@ void particleEmitter::emit()
 
     constexpr float DEG2RAD = 3.14159265f / 180.0f;
 
-    std::uniform_real_distribution<float> distXY(m_config.angleMin, m_config.angleMax);
-    float angleXY = distXY(rng) * DEG2RAD;
-    std::uniform_real_distribution<float> distZ(-m_config.spreadAngle, m_config.spreadAngle);
-    float angleZ = distZ(rng) * DEG2RAD;
+    float angleXY = m_config.angleMin;
+    if (m_config.angleMax > m_config.angleMin)
+    {
+        std::uniform_real_distribution<float> distXY(m_config.angleMin, m_config.angleMax);
+        angleXY = distXY(rng);
+    }
+    angleXY *= DEG2RAD;
+    float angleZ = 0.0f;
+    if (m_config.spreadAngle > 0.0f)
+    {
+        std::uniform_real_distribution<float> distZ(-m_config.spreadAngle, m_config.spreadAngle);
+        angleZ = distZ(rng) * DEG2RAD;
+    }
 
 
     p->velocity.x = cos(angleXY) * m_config.startSpeed;
@@ -67,17 +76,21 @@ void particleEmitter::update(float deltaTime)
 
 void particleEmitter::freeDeadParticles()
 {
-    for (auto it = m_activeParticles.begin(); it != m_activeParticles.end();)
+    for (int i = (int)m_activeParticles.size() - 1; i >= 0; i--)
     {
-        Particle* particle = *it;
+        Particle* particle = m_activeParticles[i];
         if (particle->life <= 0.0f)
         {
-            ParticleMemoryManager::GetInstance()->getMemoryPool(m_poolId)->FreeParticle(particle);
-            it = m_activeParticles.erase(it);
-        }
-        else
-        {
-            ++it;
+            if (m_config.looping)
+            {
+                particle->reset();
+                ParticleMemoryManager::GetInstance()->getMemoryPool(m_poolId)->FreeParticle(reinterpret_cast<size_t*>(particle), m_config.looping);
+            }
+            else
+            {
+                particle = m_activeParticles.back();
+                m_activeParticles.pop_back();
+            }
         }
     }
 }

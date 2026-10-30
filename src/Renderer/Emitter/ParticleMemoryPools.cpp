@@ -30,6 +30,10 @@ Particle *ParticleMemoryPool::GetNewParticle()
 {
     Particle *newParticle = nullptr;
 
+    if (m_freeParticles.empty())
+    {
+
+    }
     if (m_currentParticleIndex < m_maxParticles)
     {
         newParticle = &m_particles[m_currentParticleIndex];
@@ -80,11 +84,13 @@ particleSystem * ParticleMemoryPool::GetNewSystem()
 
 
 
-void ParticleMemoryPool::FreeParticle(Particle *particle)
+void ParticleMemoryPool::FreeParticle(size_t *particle, bool loop)
 {
     assert(particle != nullptr);
-    particle->reset();
-    m_freeParticles.push_back(particle);
+    if (!loop)
+    {
+        m_freeParticles.push_back(reinterpret_cast<Particle*>(particle));
+    }
 }
 
 void ParticleMemoryPool::FreeEmitter(particleEmitter *emitter)

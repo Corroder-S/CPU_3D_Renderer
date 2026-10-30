@@ -37,7 +37,7 @@ public:
     particleSystem* GetNewSystem();
 
 
-    void FreeParticle(Particle *particle);
+    void FreeParticle(size_t *particle, bool loop);
     void FreeEmitter(particleEmitter* emitter);
     void FreeSystem(particleSystem* system);
 
