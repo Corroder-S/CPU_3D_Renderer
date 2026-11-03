@@ -67,7 +67,9 @@ add_executable(cpu_renderer_sdl
         src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
         src/Renderer/Emitter/ParticleManager.h
         src/Renderer/Emitter/ParticleManager.cpp
- "src/Renderer/Emitter/WorkerPool.h")
+        src/Renderer/Emitter/WorkerPool.h
+        src/Renderer/TerrainGenerator.h
+        src/Engine/CameraController.h)
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 

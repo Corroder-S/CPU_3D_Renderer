@@ -63,6 +63,10 @@ int Engine::run()
                 m_renderer.setFrameBuffer(reinterpret_cast<uint32_t*>(surface->pixels));
                 m_renderer.onResize(event.window.data1, event.window.data2);
             }
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT)
+                SDL_SetWindowRelativeMouseMode(m_window, true);
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.button.button == SDL_BUTTON_RIGHT)
+                SDL_SetWindowRelativeMouseMode(m_window, false);
         }
 
         Time::update();

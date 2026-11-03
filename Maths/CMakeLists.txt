@@ -5,9 +5,9 @@ add_library(Maths STATIC
     SSE/MatBatchSSE.cpp
     ASM/Vec3.asm
     ASM/Vec3.h
-        SIMD/Vec3.h
-        SIMD/Utils.h
-)
+    SIMD/Vec3.h
+    SIMD/Utils.h
+    PerlinNoise.h)
 
 target_include_directories(Maths PUBLIC
     ${CMAKE_SOURCE_DIR}

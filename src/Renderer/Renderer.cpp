@@ -20,7 +20,7 @@ Renderer::~Renderer()
 
 void Renderer::init(uint32_t width, uint32_t height)
 {
-    onResize(width, height);  // initTiles() appelée dans onResize
+    onResize(width, height);
 
     m_numWorkers = std::max(1, (int)std::thread::hardware_concurrency() - 1);
     m_workers.resize(m_numWorkers);
@@ -75,10 +75,11 @@ void Renderer::renderScene(const Scene& scene)
     {
         for (auto& tri : m_opaqueTriangles)
         {
-            int minX = std::min({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
-            int maxX = std::max({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
-            int minY = std::min({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
-            int maxY = std::max({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
+            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
+            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
+            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
+            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
+
             for (int i = 0; i < (int)m_tiles.size(); i++)
             {
                 auto& tile = m_tiles[i];
@@ -101,10 +102,10 @@ void Renderer::renderScene(const Scene& scene)
 
         for (auto& tri : m_transparentTriangles)
         {
-            int minX = std::min({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
-            int maxX = std::max({(int)tri.a.x, (int)tri.b.x, (int)tri.c.x});
-            int minY = std::min({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
-            int maxY = std::max({(int)tri.a.y, (int)tri.b.y, (int)tri.c.y});
+            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
+            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
+            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
+            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
 
             for (int i = 0; i < (int)m_tiles.size(); i++)
             {
@@ -129,7 +130,6 @@ void Renderer::renderScene(const Scene& scene)
         m_workers[i]->cv.notify_one();
     }
 
-    // Join
     for (int i = 0; i < m_numWorkers; i++) {
         std::unique_lock<std::mutex> lock(m_workers[i]->mutex);
         m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });

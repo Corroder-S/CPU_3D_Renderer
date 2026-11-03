@@ -4,19 +4,20 @@
 #include "Asset/Texture.h"
 #include "Asset/Font.h"
 #include "Engine/Engine.h"
+#include "Engine/CameraController.h"
 #include "Scene/RenderObject.h"
 #include "Scene/Scene.h"
 #include "SDL3/SDL_timer.h"
 
 class Application : public Engine
 {
-    Scene   m_scene;
-    Mesh    m_mesh;
-	Font    m_font;
+    Scene            m_scene;
+    Mesh             m_mesh;
+    Mesh             m_terrainMesh;
+    Font             m_font;
     std::shared_ptr<Texture> m_texture;
-    ParticleManager m_particleManager;
-
-
+    ParticleManager  m_particleManager;
+    CameraController m_cameraController{ 10.0f };
 
 public:
     void start()  override;

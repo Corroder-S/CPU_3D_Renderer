@@ -33,6 +33,7 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     if (!u.material || !u.light) return Color::White;
 
     Color albedo = u.material->diffuse;
+    if (albedo.a <= 0.0f) albedo.a = 1.0f;
 
     if (u.material->texture) {
         uint32_t texel = u.material->texture->sampleBilinear(in.uv.x, in.uv.y);
@@ -44,19 +45,22 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     }
 
     Maths::Vec3f N = Maths::Normalize(in.normal);
+    Maths::Vec3f Lnorm = Maths::Normalize(L);
 
     Color ambient = albedo * (u.material->ambient * u.light->ambient);
 
-    float NdotL = std::max(0.0f, Maths::Dot(N, L));
+    float NdotL = std::max(0.0f, Maths::Dot(N, Lnorm));
     Color diffuse = albedo * NdotL;
 
     Color specular = Color(0.0f, 0.0f, 0.0f, 0.0f);
 
-    if (NdotL > 0.0f && (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f)) {
+    if (NdotL > 0.0f && u.material->shininess > 0.0f &&
+        (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f))
+    {
         Maths::Vec3f dirV = u.cameraPos - in.worldPos;
         if (dirV.MagnitudeSquared() > 0.0f) {
             Maths::Vec3f V = Maths::Normalize(dirV);
-            Maths::Vec3f H = L + V;
+            Maths::Vec3f H = Lnorm + V;
             if (H.MagnitudeSquared() > 0.0f) {
                 H = Maths::Normalize(H);
                 float NdotH = std::max(0.0f, Maths::Dot(N, H));
@@ -67,6 +71,10 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
     }
 
     Color finalColor = ambient + diffuse + specular;
+
+    finalColor.r = std::clamp(finalColor.r, 0.0f, 1.0f);
+    finalColor.g = std::clamp(finalColor.g, 0.0f, 1.0f);
+    finalColor.b = std::clamp(finalColor.b, 0.0f, 1.0f);
 
     float alpha = albedo.a * u.material->dissolve;
     finalColor.a = std::clamp(alpha, 0.0f, 1.0f);
@@ -81,7 +89,13 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
         return Color8{ _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f) };
     }
 
-    Color8 albedo = { _mm256_set1_ps(u.material->diffuse.r), _mm256_set1_ps(u.material->diffuse.g), _mm256_set1_ps(u.material->diffuse.b), _mm256_set1_ps(u.material->diffuse.a) };
+    float diffA = (u.material->diffuse.a <= 0.0f) ? 1.0f : u.material->diffuse.a;
+    Color8 albedo = {
+        _mm256_set1_ps(u.material->diffuse.r),
+        _mm256_set1_ps(u.material->diffuse.g),
+        _mm256_set1_ps(u.material->diffuse.b),
+        _mm256_set1_ps(diffA)
+    };
 
     if (u.material->texture) {
         __m256i texel = u.material->texture->sampleBilinear_8(in.uv.x, in.uv.y);
@@ -100,18 +114,21 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
     }
 
     Maths::Vec3<__m256> N = Maths::SIMD::Normalize8(in.normal);
+    Maths::Vec3<__m256> Lnorm = Maths::SIMD::Normalize8(L);
 
     Color ambLight = u.material->ambient * u.light->ambient;
     Color8 ambLight8 = { _mm256_set1_ps(ambLight.r), _mm256_set1_ps(ambLight.g), _mm256_set1_ps(ambLight.b), _mm256_set1_ps(ambLight.a) };
     Color8 ambient = albedo * ambLight8;
 
-    __m256 NdotL = _mm256_max_ps(_mm256_setzero_ps(), Maths::SIMD::Dot8(N, L));
-
+    __m256 NdotL = _mm256_max_ps(_mm256_setzero_ps(), Maths::SIMD::Dot8(N, Lnorm));
     Color8 diffuse = albedo * NdotL;
 
     Color8 specular = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps() };
 
-    if (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f)
+    bool hasSpecular = (u.material->shininess > 0.0f) &&
+        (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f);
+
+    if (hasSpecular)
     {
         __m256 specMask = _mm256_cmp_ps(NdotL, _mm256_setzero_ps(), _CMP_GT_OS);
 
@@ -119,7 +136,7 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
         __m256 vMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirV, dirV), _mm256_setzero_ps(), _CMP_GT_OS);
         Maths::Vec3<__m256> V = Maths::SIMD::Normalize8(dirV);
 
-        Maths::Vec3<__m256> dirH = { _mm256_add_ps(L.x, V.x), _mm256_add_ps(L.y, V.y), _mm256_add_ps(L.z, V.z) };
+        Maths::Vec3<__m256> dirH = { _mm256_add_ps(Lnorm.x, V.x), _mm256_add_ps(Lnorm.y, V.y), _mm256_add_ps(Lnorm.z, V.z) };
         __m256 hMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirH, dirH), _mm256_setzero_ps(), _CMP_GT_OS);
         Maths::Vec3<__m256> H = Maths::SIMD::Normalize8(dirH);
 
@@ -142,9 +159,14 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
     }
 
     Color8 finalColor = ambient + diffuse + specular;
+    __m256 one = _mm256_set1_ps(1.0f);
+    __m256 zero = _mm256_setzero_ps();
+    finalColor.r = _mm256_min_ps(_mm256_max_ps(finalColor.r, zero), one);
+    finalColor.g = _mm256_min_ps(_mm256_max_ps(finalColor.g, zero), one);
+    finalColor.b = _mm256_min_ps(_mm256_max_ps(finalColor.b, zero), one);
 
     __m256 alpha = _mm256_mul_ps(albedo.a, _mm256_set1_ps(u.material->dissolve));
-    finalColor.a = _mm256_min_ps(_mm256_max_ps(alpha, _mm256_setzero_ps()), _mm256_set1_ps(1.0f));
+    finalColor.a = _mm256_min_ps(_mm256_max_ps(alpha, zero), one);
 
     return finalColor;
 }
