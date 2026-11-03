@@ -271,7 +271,7 @@ void Renderer::onResize(uint32_t width, uint32_t height)
     m_width = width;
     m_height = height;
     initTiles();
-    m_zBuffer.resize(width * height, 1e30f);
+    m_zBuffer.resize(width * height + 16, 1e30f);
 }
 
 void Renderer::initTiles() {

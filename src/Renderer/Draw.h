@@ -139,7 +139,6 @@ static inline void drawTriangle(
     int idx = minY * width + minX;
     __m256 maxXV = _mm256_set1_ps((float)maxX + 0.5f);
 
-    int idx = minY * RENDER_WIDTH + minX;
     for (uint32_t y = minY; y <= maxY; y++)
     {
         __m256 w0 = _mm256_set_ps(w0_row + 7 * dw0_dx, w0_row + 6 * dw0_dx, w0_row + 5 * dw0_dx, w0_row + 4 * dw0_dx, w0_row + 3 * dw0_dx, w0_row + 2 * dw0_dx, w0_row + 1 * dw0_dx, w0_row);
@@ -164,6 +163,7 @@ static inline void drawTriangle(
 
         for (uint32_t x = minX; x <= maxX; x += 8)
         {
+
             __m256 zero  = _mm256_setzero_ps();
             __m256 mask0 = _mm256_cmp_ps(w0, zero, _CMP_GE_OS);
             __m256 mask1 = _mm256_cmp_ps(w1, zero, _CMP_GE_OS);
@@ -176,6 +176,15 @@ static inline void drawTriangle(
             __m256 boundsMask = _mm256_cmp_ps(xVec, maxXV, _CMP_LE_OS);
 
             __m256 finalMask = _mm256_and_ps(_mm256_and_ps(triMask, depthMask), boundsMask);
+
+            int remaining = (int)maxX - (int)x + 1;
+            if (remaining < 8) {
+                __m256i boundsMask = _mm256_cmpgt_epi32(
+                    _mm256_set1_epi32(remaining),
+                    _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0)
+                );
+                finalMask = _mm256_and_ps(finalMask, _mm256_castsi256_ps(boundsMask));
+            }
 
             if (!_mm256_testz_ps(finalMask, finalMask))
             {
@@ -199,7 +208,7 @@ static inline void drawTriangle(
 
                 Color8 color = evaluateBlinnPhong_8(frag, uniforms, L8, C8);
 
-                __m256i dst = _mm256_loadu_si256((__m256i*) & framebuffer[idx]);
+                __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(finalMask));
 
                 __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
                 __m256 dstG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 8), _mm256_set1_epi32(0xFF)));
