@@ -7,7 +7,7 @@
 void ParticleManager::initialize(uint32_t maxParticles, uint32_t numPools)
 {
     m_numPools = numPools;
-    ParticleMemoryManager::GetInstance()->Initialize(
+    ParticleMemoryManager::GetInstance().Initialize(
         maxParticles,
         maxParticles / 10,
         maxParticles / 100,
@@ -19,9 +19,9 @@ void ParticleManager::initialize(uint32_t maxParticles, uint32_t numPools)
 
 void ParticleManager::createSystem(const emitterConfig& config, const Maths::Vec3f& position)
 {
-    auto* memoryManager = ParticleMemoryManager::GetInstance();
-    const uint32_t poolID = memoryManager->getBestPoolIdForNewParticles();
-    auto* pool = memoryManager->getMemoryPool(poolID);
+    auto& memoryManager = ParticleMemoryManager::GetInstance();
+    const uint32_t poolID = memoryManager.getBestPoolIdForNewParticles();
+    auto pool = memoryManager.getMemoryPool(poolID);
     particleSystem* system = pool->GetNewSystem();
 
     if (!system)
@@ -45,18 +45,15 @@ void ParticleManager::update(float deltaTime)
 {
     m_masterBuffer.clearParticleVertices();
 
-    std::vector<std::thread> threads;
-    for (uint32_t i = 0; i < m_numPools; i++)
-    {
-        ParticleUpdateJob job;
-        job.ParticleSystems = &m_systemsPerPool[i];
-        job.masterBuffer    = &m_masterBuffer;
-        job.poolIndex       = i;
-        job.deltaTime       = deltaTime;
+    m_workers.parallelFor(m_numPools, [&](uint32_t i)
+        {
+            ParticleUpdateJob job;
+            job.ParticleSystems = &m_systemsPerPool[i];
+            job.masterBuffer = &m_masterBuffer;
+            job.poolIndex = i;
+            job.deltaTime = deltaTime;
+            job.execute();
+        });
 
-        threads.emplace_back([job]() mutable { job.execute(); });
-    }
-    for (auto& t : threads)
-        t.join();
     m_masterBuffer.mergeAllPools();
 }

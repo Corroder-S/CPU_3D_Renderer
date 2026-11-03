@@ -15,13 +15,15 @@ void ParticleMemoryManager::Initialize(uint32_t numParticles, uint32_t numEmitte
     }
 }
 
-ParticleMemoryManager* ParticleMemoryManager::GetInstance()
-{
-    if (m_instance == nullptr)
-    {
-        m_instance = new ParticleMemoryManager();
-    }
-    return m_instance;
+ParticleMemoryManager& ParticleMemoryManager::GetInstance() {
+    static ParticleMemoryManager instance;
+    return instance;
+}
+
+ParticleMemoryManager::~ParticleMemoryManager() {
+    for (auto* pool : m_memoryPools) delete pool;
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 ParticleMemoryPool* ParticleMemoryManager::getMemoryPool(uint32_t index)

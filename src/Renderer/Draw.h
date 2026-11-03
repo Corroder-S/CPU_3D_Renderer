@@ -57,7 +57,6 @@ static inline void drawTriangle(
     int fbWidth,
     bool writeDepth = true)
 {
-
     Maths::Vec3<__m256> L8 = { _mm256_set1_ps(light.direction.x), _mm256_set1_ps(light.direction.y), _mm256_set1_ps(light.direction.z) };
     Maths::Vec3<__m256> C8 = { _mm256_set1_ps(uniforms.cameraPos.x), _mm256_set1_ps(uniforms.cameraPos.y), _mm256_set1_ps(uniforms.cameraPos.z) };
 
@@ -66,10 +65,11 @@ static inline void drawTriangle(
     int minY = std::max(renderMin.y, std::min({ (int)a.y, (int)b.y, (int)c.y }));
     int maxY = std::min(renderMax.y - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
 
-    Maths::Vec3f minPos = { (float)minX, (float)minY, 0.0f };
+    if (minX > maxX || minY > maxY) return;
+
+    Maths::Vec3f minPos = { (float)minX + 0.5f, (float)minY + 0.5f, 0.0f };
 
     int covered = ((maxX - minX) / 8 + 1) * 8;
-
 
     float w0_row = edge(b, c, minPos);
     float w1_row = edge(c, a, minPos);
@@ -137,40 +137,54 @@ static inline void drawTriangle(
     float dpzw_dy = dfw0_dy * wp0.z * invW.x + dfw1_dy * wp1.z * invW.y + dfw2_dy * wp2.z * invW.z;
 
     int idx = minY * fbWidth + minX;
+    __m256 maxXV = _mm256_set1_ps((float)maxX + 0.5f);
+
     for (uint32_t y = minY; y <= maxY; y++)
     {
+        __m256 w0 = _mm256_set_ps(w0_row + 7 * dw0_dx, w0_row + 6 * dw0_dx, w0_row + 5 * dw0_dx, w0_row + 4 * dw0_dx, w0_row + 3 * dw0_dx, w0_row + 2 * dw0_dx, w0_row + 1 * dw0_dx, w0_row);
+        __m256 w1 = _mm256_set_ps(w1_row + 7 * dw1_dx, w1_row + 6 * dw1_dx, w1_row + 5 * dw1_dx, w1_row + 4 * dw1_dx, w1_row + 3 * dw1_dx, w1_row + 2 * dw1_dx, w1_row + 1 * dw1_dx, w1_row);
+        __m256 w2 = _mm256_set_ps(w2_row + 7 * dw2_dx, w2_row + 6 * dw2_dx, w2_row + 5 * dw2_dx, w2_row + 4 * dw2_dx, w2_row + 3 * dw2_dx, w2_row + 2 * dw2_dx, w2_row + 1 * dw2_dx, w2_row);
 
-        __m256 w0  = _mm256_set_ps(w0_row + 7*dw0_dx, w0_row + 6*dw0_dx, w0_row + 5*dw0_dx, w0_row + 4*dw0_dx, w0_row + 3*dw0_dx, w0_row + 2*dw0_dx, w0_row + 1*dw0_dx, w0_row);
-        __m256 w1  = _mm256_set_ps(w1_row + 7*dw1_dx, w1_row + 6*dw1_dx, w1_row + 5*dw1_dx, w1_row + 4*dw1_dx, w1_row + 3*dw1_dx, w1_row + 2*dw1_dx, w1_row + 1*dw1_dx, w1_row);
-        __m256 w2  = _mm256_set_ps(w2_row + 7*dw2_dx, w2_row + 6*dw2_dx, w2_row + 5*dw2_dx, w2_row + 4*dw2_dx, w2_row + 3*dw2_dx, w2_row + 2*dw2_dx, w2_row + 1*dw2_dx, w2_row);
+        __m256 uw = _mm256_set_ps(uw_row + 7 * duw_dx, uw_row + 6 * duw_dx, uw_row + 5 * duw_dx, uw_row + 4 * duw_dx, uw_row + 3 * duw_dx, uw_row + 2 * duw_dx, uw_row + 1 * duw_dx, uw_row);
+        __m256 vw = _mm256_set_ps(vw_row + 7 * dvw_dx, vw_row + 6 * dvw_dx, vw_row + 5 * dvw_dx, vw_row + 4 * dvw_dx, vw_row + 3 * dvw_dx, vw_row + 2 * dvw_dx, vw_row + 1 * dvw_dx, vw_row);
+        __m256 iw = _mm256_set_ps(iw_row + 7 * diw_dx, iw_row + 6 * diw_dx, iw_row + 5 * diw_dx, iw_row + 4 * diw_dx, iw_row + 3 * diw_dx, iw_row + 2 * diw_dx, iw_row + 1 * diw_dx, iw_row);
 
-        __m256 uw  = _mm256_set_ps(uw_row + 7*duw_dx, uw_row + 6*duw_dx, uw_row + 5*duw_dx, uw_row + 4*duw_dx, uw_row + 3*duw_dx, uw_row + 2*duw_dx, uw_row + 1*duw_dx, uw_row);
-        __m256 vw  = _mm256_set_ps(vw_row + 7*dvw_dx, vw_row + 6*dvw_dx, vw_row + 5*dvw_dx, vw_row + 4*dvw_dx, vw_row + 3*dvw_dx, vw_row + 2*dvw_dx, vw_row + 1*dvw_dx, vw_row);
-        __m256 iw  = _mm256_set_ps(iw_row + 7*diw_dx, iw_row + 6*diw_dx, iw_row + 5*diw_dx, iw_row + 4*diw_dx, iw_row + 3*diw_dx, iw_row + 2*diw_dx, iw_row + 1*diw_dx, iw_row);
+        __m256 z = _mm256_set_ps(z_row + 7 * dz_dx, z_row + 6 * dz_dx, z_row + 5 * dz_dx, z_row + 4 * dz_dx, z_row + 3 * dz_dx, z_row + 2 * dz_dx, z_row + 1 * dz_dx, z_row);
 
-        __m256 z   = _mm256_set_ps(z_row + 7*dz_dx, z_row + 6*dz_dx, z_row + 5*dz_dx, z_row + 4*dz_dx, z_row + 3*dz_dx, z_row + 2*dz_dx, z_row + 1*dz_dx, z_row);
+        __m256 nx = _mm256_set_ps(nx_row + 7 * dnx_dx, nx_row + 6 * dnx_dx, nx_row + 5 * dnx_dx, nx_row + 4 * dnx_dx, nx_row + 3 * dnx_dx, nx_row + 2 * dnx_dx, nx_row + 1 * dnx_dx, nx_row);
+        __m256 ny = _mm256_set_ps(ny_row + 7 * dny_dx, ny_row + 6 * dny_dx, ny_row + 5 * dny_dx, ny_row + 4 * dny_dx, ny_row + 3 * dny_dx, ny_row + 2 * dny_dx, ny_row + 1 * dny_dx, ny_row);
+        __m256 nz = _mm256_set_ps(nz_row + 7 * dnz_dx, nz_row + 6 * dnz_dx, nz_row + 5 * dnz_dx, nz_row + 4 * dnz_dx, nz_row + 3 * dnz_dx, nz_row + 2 * dnz_dx, nz_row + 1 * dnz_dx, nz_row);
 
-        __m256 nx  = _mm256_set_ps(nx_row + 7*dnx_dx, nx_row + 6*dnx_dx, nx_row + 5*dnx_dx, nx_row + 4*dnx_dx, nx_row + 3*dnx_dx, nx_row + 2*dnx_dx, nx_row + 1*dnx_dx, nx_row);
-        __m256 ny  = _mm256_set_ps(ny_row + 7*dny_dx, ny_row + 6*dny_dx, ny_row + 5*dny_dx, ny_row + 4*dny_dx, ny_row + 3*dny_dx, ny_row + 2*dny_dx, ny_row + 1*dny_dx, ny_row);
-        __m256 nz  = _mm256_set_ps(nz_row + 7*dnz_dx, nz_row + 6*dnz_dx, nz_row + 5*dnz_dx, nz_row + 4*dnz_dx, nz_row + 3*dnz_dx, nz_row + 2*dnz_dx, nz_row + 1*dnz_dx, nz_row);
+        __m256 pxw = _mm256_set_ps(pxw_row + 7 * dpxw_dx, pxw_row + 6 * dpxw_dx, pxw_row + 5 * dpxw_dx, pxw_row + 4 * dpxw_dx, pxw_row + 3 * dpxw_dx, pxw_row + 2 * dpxw_dx, pxw_row + 1 * dpxw_dx, pxw_row);
+        __m256 pyw = _mm256_set_ps(pyw_row + 7 * dpyw_dx, pyw_row + 6 * dpyw_dx, pyw_row + 5 * dpyw_dx, pyw_row + 4 * dpyw_dx, pyw_row + 3 * dpyw_dx, pyw_row + 2 * dpyw_dx, pyw_row + 1 * dpyw_dx, pyw_row);
+        __m256 pzw = _mm256_set_ps(pzw_row + 7 * dpzw_dx, pzw_row + 6 * dpzw_dx, pzw_row + 5 * dpzw_dx, pzw_row + 4 * dpzw_dx, pzw_row + 3 * dpzw_dx, pzw_row + 2 * dpzw_dx, pzw_row + 1 * dpzw_dx, pzw_row);
 
-        __m256 pxw = _mm256_set_ps(pxw_row + 7*dpxw_dx, pxw_row + 6*dpxw_dx, pxw_row + 5*dpxw_dx, pxw_row + 4*dpxw_dx, pxw_row + 3*dpxw_dx, pxw_row + 2*dpxw_dx, pxw_row + 1*dpxw_dx, pxw_row);
-        __m256 pyw = _mm256_set_ps(pyw_row + 7*dpyw_dx, pyw_row + 6*dpyw_dx, pyw_row + 5*dpyw_dx, pyw_row + 4*dpyw_dx, pyw_row + 3*dpyw_dx, pyw_row + 2*dpyw_dx, pyw_row + 1*dpyw_dx, pyw_row);
-        __m256 pzw = _mm256_set_ps(pzw_row + 7*dpzw_dx, pzw_row + 6*dpzw_dx, pzw_row + 5*dpzw_dx, pzw_row + 4*dpzw_dx, pzw_row + 3*dpzw_dx, pzw_row + 2*dpzw_dx, pzw_row + 1*dpzw_dx, pzw_row);
+        __m256 xVec = _mm256_set_ps((float)minX + 7.0f, (float)minX + 6.0f, (float)minX + 5.0f, (float)minX + 4.0f, (float)minX + 3.0f, (float)minX + 2.0f, (float)minX + 1.0f, (float)minX + 0.0f);
 
-
-
-        for (uint32_t x = minX; x <= maxX; x+=8)
+        for (uint32_t x = minX; x <= maxX; x += 8)
         {
-            __m256 orResult = _mm256_or_ps(_mm256_or_ps(w0, w1), w2);
-            __m256 triMask = _mm256_cmp_ps(orResult, _mm256_setzero_ps(), _CMP_GE_OS);
+
+            __m256 zero  = _mm256_setzero_ps();
+            __m256 mask0 = _mm256_cmp_ps(w0, zero, _CMP_GE_OS);
+            __m256 mask1 = _mm256_cmp_ps(w1, zero, _CMP_GE_OS);
+            __m256 mask2 = _mm256_cmp_ps(w2, zero, _CMP_GE_OS);
+            __m256 triMask = _mm256_and_ps(_mm256_and_ps(mask0, mask1), mask2);
 
             __m256 zbufferVec = _mm256_loadu_ps(&zbuffer[idx]);
             __m256 depthMask = _mm256_cmp_ps(z, zbufferVec, _CMP_LE_OS);
 
-            __m256 finalMask = _mm256_and_ps(triMask, depthMask);
+            __m256 boundsMask = _mm256_cmp_ps(xVec, maxXV, _CMP_LE_OS);
 
+            __m256 finalMask = _mm256_and_ps(_mm256_and_ps(triMask, depthMask), boundsMask);
 
+            int remaining = (int)maxX - (int)x + 1;
+            if (remaining < 8) {
+                __m256i boundsMask = _mm256_cmpgt_epi32(
+                    _mm256_set1_epi32(remaining),
+                    _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0)
+                );
+                finalMask = _mm256_and_ps(finalMask, _mm256_castsi256_ps(boundsMask));
+            }
 
             if (!_mm256_testz_ps(finalMask, finalMask))
             {
@@ -188,17 +202,13 @@ static inline void drawTriangle(
                 __m256 worldPosZ = _mm256_mul_ps(pzw, inv_iw);
 
                 FragmentInput_8 frag;
-
                 frag.uv = { u, v };
                 frag.normal = { nx, ny, nz };
                 frag.worldPos = { worldPosX, worldPosY, worldPosZ };
 
-
-
                 Color8 color = evaluateBlinnPhong_8(frag, uniforms, L8, C8);
 
-
-                __m256i dst = _mm256_loadu_si256((__m256i*)&framebuffer[idx]);
+                __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(finalMask));
 
                 __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
                 __m256 dstG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 8), _mm256_set1_epi32(0xFF)));
@@ -211,7 +221,6 @@ static inline void drawTriangle(
                 dstR = _mm256_add_ps(dstR, _mm256_mul_ps(_mm256_mul_ps(color.r, _mm256_set1_ps(255.0f)), color.a));
                 dstG = _mm256_add_ps(dstG, _mm256_mul_ps(_mm256_mul_ps(color.g, _mm256_set1_ps(255.0f)), color.a));
                 dstB = _mm256_add_ps(dstB, _mm256_mul_ps(_mm256_mul_ps(color.b, _mm256_set1_ps(255.0f)), color.a));
-
 
                 __m256i ri = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstR, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
                 __m256i gi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstG, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
@@ -226,21 +235,23 @@ static inline void drawTriangle(
                 _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(finalMask), packed);
             }
 
-            w0 = _mm256_add_ps(w0, _mm256_set1_ps(dw0_dx*8));
-            w1 = _mm256_add_ps(w1, _mm256_set1_ps(dw1_dx*8));
-            w2 = _mm256_add_ps(w2, _mm256_set1_ps(dw2_dx*8));
-            z = _mm256_add_ps(z, _mm256_set1_ps(dz_dx*8));
-            uw = _mm256_add_ps(uw, _mm256_set1_ps(duw_dx*8));
-            vw = _mm256_add_ps(vw, _mm256_set1_ps(dvw_dx*8));
-            iw = _mm256_add_ps(iw, _mm256_set1_ps(diw_dx*8));
-            nx = _mm256_add_ps(nx, _mm256_set1_ps(dnx_dx*8));
-            ny = _mm256_add_ps(ny, _mm256_set1_ps(dny_dx*8));
-            nz = _mm256_add_ps(nz, _mm256_set1_ps(dnz_dx*8));
-            pxw = _mm256_add_ps(pxw, _mm256_set1_ps(dpxw_dx*8));
-            pyw = _mm256_add_ps(pyw, _mm256_set1_ps(dpyw_dx*8));
-            pzw = _mm256_add_ps(pzw, _mm256_set1_ps(dpzw_dx*8));
+            w0 = _mm256_add_ps(w0, _mm256_set1_ps(dw0_dx * 8));
+            w1 = _mm256_add_ps(w1, _mm256_set1_ps(dw1_dx * 8));
+            w2 = _mm256_add_ps(w2, _mm256_set1_ps(dw2_dx * 8));
+            z = _mm256_add_ps(z, _mm256_set1_ps(dz_dx * 8));
+            uw = _mm256_add_ps(uw, _mm256_set1_ps(duw_dx * 8));
+            vw = _mm256_add_ps(vw, _mm256_set1_ps(dvw_dx * 8));
+            iw = _mm256_add_ps(iw, _mm256_set1_ps(diw_dx * 8));
+            nx = _mm256_add_ps(nx, _mm256_set1_ps(dnx_dx * 8));
+            ny = _mm256_add_ps(ny, _mm256_set1_ps(dny_dx * 8));
+            nz = _mm256_add_ps(nz, _mm256_set1_ps(dnz_dx * 8));
+            pxw = _mm256_add_ps(pxw, _mm256_set1_ps(dpxw_dx * 8));
+            pyw = _mm256_add_ps(pyw, _mm256_set1_ps(dpyw_dx * 8));
+            pzw = _mm256_add_ps(pzw, _mm256_set1_ps(dpzw_dx * 8));
 
-            idx+= 8;
+            xVec = _mm256_add_ps(xVec, _mm256_set1_ps(8.0f));
+
+            idx += 8;
         }
 
         idx += fbWidth - covered;
@@ -250,8 +261,6 @@ static inline void drawTriangle(
         pxw_row += dpxw_dy; pyw_row += dpyw_dy; pzw_row += dpzw_dy;
         w0_row += dw0_dy; w1_row += dw1_dy; w2_row += dw2_dy;
     }
-
-
 }
 
 
