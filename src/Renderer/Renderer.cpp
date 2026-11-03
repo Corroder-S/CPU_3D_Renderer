@@ -320,8 +320,7 @@ void Renderer::workerLoop(Worker& w)
                     tri.uniforms,
                     *tri.light,
                     {tile.x_min, tile.y_min},
-                    {tile.x_max, tile.y_max},
-                    (int)m_width,
+                    {tile.x_max, tile.y_max}, m_width,
                     tri.writeDepth
                 );
             }
