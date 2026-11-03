@@ -67,11 +67,26 @@ add_executable(cpu_renderer_sdl
         src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
         src/Renderer/Emitter/ParticleManager.h
         src/Renderer/Emitter/ParticleManager.cpp
+        src/ECS/headers/Archetypes.h
+        src/ECS/detail/component_registry.inl
+        src/ECS/detail/entity_component.inl
+        src/ECS/detail/paged_allocator.inl
+        src/ECS/detail/registry.inl
+        src/ECS/headers/component_registry.h
+        src/ECS/headers/entity_component.h
+        src/ECS/headers/paged_allocator.h
+        src/ECS/headers/registry.h
+        src/ECS/headers/ChunkPool.h
+        src/ECS/headers/ComponentMetaRegistry.h
+        src/Scene/Component.h
 )
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
-target_compile_options(cpu_renderer_sdl PRIVATE /O2 /fp:fast)
+if( NOT CMAKE_BUILD_TYPE  STREQUAL "Debug")
+    target_compile_options(cpu_renderer_sdl PRIVATE /O2)
+endif()
+target_compile_options(cpu_renderer_sdl PRIVATE /fp:fast /arch:AVX2)
 
 
 target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -85,6 +100,8 @@ add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
         $<TARGET_FILE:SDL3::SDL3>
         $<TARGET_FILE_DIR:cpu_renderer_sdl>
 )
+
+add_subdirectory(ecs_sandbox)
 
 option(BUILD_TESTS "Build unit tests" ON)
 

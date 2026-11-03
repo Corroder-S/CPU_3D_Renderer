@@ -50,10 +50,11 @@ static inline void drawTriangle(
     Maths::Vec3f invW,
     Maths::Vec3f wn0, Maths::Vec3f wn1, Maths::Vec3f wn2,
     Maths::Vec3f wp0, Maths::Vec3f wp1, Maths::Vec3f wp2,
-    std::vector<uint32_t>& framebuffer,
+    uint32_t* framebuffer,
     std::vector<float>& zbuffer,
     const ShaderUniforms& uniforms,
     const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax,
+    int fbWidth,
     bool writeDepth = true)
 {
 
@@ -135,7 +136,7 @@ static inline void drawTriangle(
     float dpyw_dy = dfw0_dy * wp0.y * invW.x + dfw1_dy * wp1.y * invW.y + dfw2_dy * wp2.y * invW.z;
     float dpzw_dy = dfw0_dy * wp0.z * invW.x + dfw1_dy * wp1.z * invW.y + dfw2_dy * wp2.z * invW.z;
 
-    int idx = minY * RENDER_WIDTH + minX;
+    int idx = minY * fbWidth + minX;
     for (uint32_t y = minY; y <= maxY; y++)
     {
 
@@ -242,7 +243,7 @@ static inline void drawTriangle(
             idx+= 8;
         }
 
-        idx += RENDER_WIDTH - covered;
+        idx += fbWidth - covered;
         z_row += dz_dy;
         uw_row += duw_dy; vw_row += dvw_dy; iw_row += diw_dy;
         nx_row += dnx_dy; ny_row += dny_dy; nz_row += dnz_dy;
@@ -259,7 +260,7 @@ static inline void drawText(
     const std::string& text,
     uint32_t posX, uint32_t posY,
     const Color& color,
-    std::vector<uint32_t>& framebuffer,
+    uint32_t* framebuffer,
     uint32_t fbWidth, uint32_t fbHeight)
 {
     const auto& alphaAtlas = font.getAtlasAlpha();

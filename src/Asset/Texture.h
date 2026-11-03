@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <cmath>
+#include <immintrin.h>
 #include "External/stb/stb_image.h"
 
 
