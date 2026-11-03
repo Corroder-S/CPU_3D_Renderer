@@ -1,6 +1,13 @@
 #include "Renderer.h"
 #include <algorithm>
 #include <thread>
+#include <chrono>
+
+using Clock = std::chrono::high_resolution_clock;
+static double toMs(Clock::time_point a, Clock::time_point b)
+{
+    return std::chrono::duration<double, std::milli>(b - a).count();
+}
 
 Renderer::~Renderer()
 {
@@ -26,6 +33,9 @@ void Renderer::init(uint32_t width, uint32_t height)
 
 void Renderer::renderScene(const Scene& scene)
 {
+    auto tScene0 = Clock::now();
+
+    auto tClear0 = Clock::now();
 
     m_screenTriangles.clear();
     m_opaqueTriangles.clear();
@@ -36,10 +46,12 @@ void Renderer::renderScene(const Scene& scene)
         bin.clear();
     }
 
+    auto tMesh0 = Clock::now();
+    m_timeClearBinsMs = toMs(tClear0, tMesh0);
+
     auto view = scene.camera.getViewMatrix();
     auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
     auto viewProj = proj * view;
-
 
     for (auto& obj : scene.objects)
     {
@@ -55,6 +67,9 @@ void Renderer::renderScene(const Scene& scene)
 
         drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0], isTransparent, targetList);
     }
+
+    auto t0 = Clock::now();
+    m_timeMeshMs = toMs(tMesh0, t0);
 
     if (!m_opaqueTriangles.empty())
     {
@@ -103,6 +118,9 @@ void Renderer::renderScene(const Scene& scene)
         }
     }
 
+    auto t1 = Clock::now();
+    m_timeBinMs = toMs(t0, t1);
+
     // Fork
     m_tileCounter = 0;
     for (int i = 0; i < m_numWorkers; i++) {
@@ -117,6 +135,9 @@ void Renderer::renderScene(const Scene& scene)
         m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });
     }
 
+    auto t2 = Clock::now();
+    m_timeRasterMs = toMs(t1, t2);
+    m_timeSceneMs  = toMs(tScene0, t2);
 }
 
 void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
@@ -230,17 +251,14 @@ void Renderer::drawParticle(const ParticleVertex &particle, const Maths::Matrix4
     }
 }
 
-void Renderer::present(SDL_Texture* texture, SDL_Renderer* sdlRenderer)
+void Renderer::present(SDL_Window* window)
 {
-    SDL_UpdateTexture(texture, nullptr, m_framebuffer.data(), m_width * sizeof(uint32_t));
-    SDL_RenderClear(sdlRenderer);
-    SDL_RenderTexture(sdlRenderer, texture, nullptr, nullptr);
-    SDL_RenderPresent(sdlRenderer);
+    SDL_UpdateWindowSurface(window);
 }
 
 void Renderer::clearFrameBuffer(uint32_t color)
 {
-    std::fill(m_framebuffer.begin(), m_framebuffer.end(), color);
+    std::fill_n(m_framebuffer, m_width * m_height, color);
 }
 
 void Renderer::clearDepthBuffer()
@@ -253,7 +271,6 @@ void Renderer::onResize(uint32_t width, uint32_t height)
     m_width = width;
     m_height = height;
     initTiles();
-    m_framebuffer.resize(width * height, 0xFF101018);
     m_zBuffer.resize(width * height, 1e30f);
 }
 
@@ -304,6 +321,7 @@ void Renderer::workerLoop(Worker& w)
                     *tri.light,
                     {tile.x_min, tile.y_min},
                     {tile.x_max, tile.y_max},
+                    (int)m_width,
                     tri.writeDepth
                 );
             }

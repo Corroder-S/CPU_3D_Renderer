@@ -55,21 +55,39 @@ public:
         const Light& light, bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
     void drawText(const Font& font, const std::string& text, int x, int y, const Color& color);
     void drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<>& viewProj);
-    void present(SDL_Texture* texture, SDL_Renderer* sdlRenderer);
+    void present(SDL_Window* window);
     void clearFrameBuffer(uint32_t color);
     void clearDepthBuffer();
 
-    uint32_t* getFrameBuffer() { return m_framebuffer.data(); }
+    uint32_t* getFrameBuffer() { return m_framebuffer; }
     float* getDepthBuffer() { return m_zBuffer.data(); }
     uint32_t  getWidth()  const { return m_width; }
     uint32_t  getHeight() const { return m_height; }
 
+    void setFrameBuffer(uint32_t* framebuffer) { m_framebuffer = framebuffer; }
     void setParticleManager(ParticleManager* manager) { m_particleManager = manager; }
+
+    SDL_Surface* getSDLSURFACE() { return m_sdlSurface; }
+    void setSDLSURFACE(SDL_Surface* surface) { m_sdlSurface = surface; }
+    void onResize(uint32_t width, uint32_t height);
+
+    double getTimeSceneMs()     const { return m_timeSceneMs; }
+    double getTimeClearBinsMs() const { return m_timeClearBinsMs; }
+    double getTimeMeshMs()      const { return m_timeMeshMs; }
+    double getTimeBinMs()       const { return m_timeBinMs; }
+    double getTimeRasterMs()    const { return m_timeRasterMs; }
+
 private:
+    SDL_Surface* m_sdlSurface = nullptr;
+    double m_timeSceneMs     = 0.0;
+    double m_timeClearBinsMs = 0.0;
+    double m_timeMeshMs      = 0.0;
+    double m_timeBinMs       = 0.0;
+    double m_timeRasterMs    = 0.0;
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 
-    std::vector<uint32_t> m_framebuffer;
+    uint32_t* m_framebuffer = nullptr; // Non owning memory
     std::vector<float>    m_zBuffer;
 
 
@@ -92,7 +110,6 @@ private:
     std::vector<Tile> m_tiles;
     const int TILE_SIZE = 160;
 
-    void onResize(uint32_t width, uint32_t height);
     void initTiles();
     void workerLoop(Worker& w);
 };

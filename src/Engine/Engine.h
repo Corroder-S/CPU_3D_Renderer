@@ -24,7 +24,8 @@ protected:
 
     Renderer m_renderer;
 
-    uint32_t m_clearColor = 0xFF101018; // ARGB dark background
+    uint32_t m_clearColor      = 0xFF101018; // ARGB dark background
+    double   m_timeParticlesMs = 0.0;
 
 private:
     SDL_Window*   m_window      = nullptr;
