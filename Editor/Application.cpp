@@ -32,7 +32,7 @@ void Application::start()
     carTransp.transform.position = { 0.0f, 0.0f, -5.0f };
     m_scene.objects.push_back(carTransp);
 
-    TerrainParams terrainParams;
+   TerrainParams terrainParams;
     terrainParams.width = 64;
     terrainParams.depth = 64;
     terrainParams.cellSize = 0.5f;

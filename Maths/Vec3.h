@@ -42,7 +42,6 @@ namespace Maths
         T MagnitudeSquared() const;
         T Magnitude() const;
 
-        // Wrappers membres & statiques
         T Dot(const Vec3& rhs) const;
         Vec3 Cross(const Vec3& rhs) const;
         Vec3 Normalize() const;
@@ -61,7 +60,6 @@ namespace Maths
         static const Vec3 UnitZ;
     };
 
-    // --- Constructors ---
 
     template <typename T>
     Vec3<T>::Vec3() : x(0), y(0), z(0) {}
@@ -81,7 +79,6 @@ namespace Maths
         : x(static_cast<T>(v.x)), y(static_cast<T>(v.y)), z(static_cast<T>(v.z)) {
     }
 
-    // --- Operators ---
 
     template <typename T>
     Vec3<T> Vec3<T>::operator+(const Vec3& rhs) const
@@ -159,7 +156,6 @@ namespace Maths
     template <typename T>
     Vec3<T> operator*(T scalar, const Vec3<T>& v) { return v * scalar; }
 
-    // --- Instance methods ---
 
     template <typename T>
     T Vec3<T>::MagnitudeSquared() const { return x * x + y * y + z * z; }
@@ -167,7 +163,6 @@ namespace Maths
     template <typename T>
     T Vec3<T>::Magnitude() const { return std::hypot(x, y, z); }
 
-    // --- Static constants ---
 
     template <typename T> const Vec3<T> Vec3<T>::Zero{ 0, 0, 0 };
     template <typename T> const Vec3<T> Vec3<T>::One{ 1, 1, 1 };
@@ -175,7 +170,6 @@ namespace Maths
     template <typename T> const Vec3<T> Vec3<T>::UnitY{ 0, 1, 0 };
     template <typename T> const Vec3<T> Vec3<T>::UnitZ{ 0, 0, 1 };
 
-    // --- Free functions ---
 
     template <typename T>
     T Dot(const Vec3<T>& a, const Vec3<T>& b)
@@ -233,7 +227,6 @@ namespace Maths
         return a * (T{ 1 } - t) + b * t;
     }
 
-    // --- Member & Static Wrappers ---
 
     template <typename T>
     T Vec3<T>::Dot(const Vec3& rhs) const { return Maths::Dot(*this, rhs); }
