@@ -11,7 +11,10 @@
 #include "Asset/Mesh.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
-#include "Scene/Scene.h"
+#include "Scene/Camera.h"
+#include "Scene/Transform.h"
+#include "Asset/Font.h"
+#include "Renderer/Emitter/ParticleManager.h"
 #include "Clip.h"
 #include "Draw.h"
 #include "Pipeline.h"
@@ -36,8 +39,7 @@ struct ScreenTriangle {
     Maths::Vec3f n0, n1, n2;
     Maths::Vec3f wp0, wp1, wp2;
 
-    ShaderUniforms uniforms; 
-    const Light* light = nullptr;
+    ShaderUniforms uniforms;
     float avgZ = 0.0f;
     bool writeDepth = true;
 };
@@ -49,10 +51,17 @@ public:
     ~Renderer();
 
     void init(uint32_t width, uint32_t height);
-    void renderScene(const Scene& scene);
     void drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
         const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
-        const Light& light, bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
+        bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
+
+    void beginFrame(const Camera &cam, float aspectRatio);
+
+    void setLights(const Light* lights, uint32_t count);
+    void submitMesh(const Mesh &mesh, const Transform& transform, const Material &material);
+
+    void endFrame();
+
     void drawText(const Font& font, const std::string& text, int x, int y, const Color& color);
     void drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<>& viewProj);
     void present(SDL_Window* window);
@@ -109,6 +118,10 @@ private:
     std::atomic<uint32_t> m_tileCounter{0};
     std::vector<Tile> m_tiles;
     const int TILE_SIZE = 160;
+    Maths::Matrix4x4<> m_viewProj;
+    Maths::Vec3f m_camPosition;
+    const Light* m_frameLights = nullptr;
+    uint32_t m_frameLightCount = 0;
 
     void initTiles();
     void workerLoop(Worker& w);

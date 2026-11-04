@@ -10,6 +10,7 @@ class PerlinNoise {
 private:
     std::vector<int> p;
 
+    // Smoothstep Ken Perlin
     static float fade(float t) {
         return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
     }
@@ -26,7 +27,7 @@ private:
     }
 
 public:
-    explicit PerlinNoise(unsigned int seed = 2026) {
+    explicit PerlinNoise(int seed) {
         p.resize(256);
         std::iota(p.begin(), p.end(), 0);
         std::default_random_engine engine(seed);

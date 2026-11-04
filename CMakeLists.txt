@@ -67,9 +67,25 @@ add_executable(cpu_renderer_sdl
         src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
         src/Renderer/Emitter/ParticleManager.h
         src/Renderer/Emitter/ParticleManager.cpp
+        src/ECS/headers/Archetypes.h
+        src/ECS/detail/component_registry.inl
+        src/ECS/detail/entity_component.inl
+        src/ECS/detail/paged_allocator.inl
+        src/ECS/detail/registry.inl
+        src/ECS/headers/component_registry.h
+        src/ECS/headers/entity_component.h
+        src/ECS/headers/paged_allocator.h
+        src/ECS/headers/registry.h
+        src/ECS/headers/ChunkPool.h
+        src/ECS/headers/ComponentMetaRegistry.h
+        src/Scene/Component.h
+        src/ECS/headers/ISystem.h
         src/Renderer/Emitter/WorkerPool.h
         src/Renderer/TerrainGenerator.h
-        src/Engine/CameraController.h "src/Engine/Editor/TerrainEditor.h" "src/Engine/UI/UIElement.h")
+        src/Engine/CameraController.h
+        Editor/System/RendererSystem.h
+        Editor/System/RendererSystem.cpp
+)
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
@@ -90,6 +106,7 @@ add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
         $<TARGET_FILE:SDL3::SDL3>
         $<TARGET_FILE_DIR:cpu_renderer_sdl>
 )
+
 
 option(BUILD_TESTS "Build unit tests" ON)
 

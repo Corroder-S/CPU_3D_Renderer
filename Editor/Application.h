@@ -3,21 +3,27 @@
 #include "Asset/Mesh.h"
 #include "Asset/Texture.h"
 #include "Asset/Font.h"
+#include "ECS/headers/registry.h"
 #include "Engine/Engine.h"
 #include "Engine/CameraController.h"
 #include "Scene/RenderObject.h"
-#include "Scene/Scene.h"
 #include "SDL3/SDL_timer.h"
+#include "System/RendererSystem.h"
+
 
 class Application : public Engine
 {
-    Scene            m_scene;
     Mesh             m_mesh;
     Mesh             m_terrainMesh;
     Font             m_font;
     std::shared_ptr<Texture> m_texture;
     ParticleManager  m_particleManager;
     CameraController m_cameraController{ 10.0f };
+
+    std::unique_ptr<RendererSystem> m_rendererSystem;
+    ECS::Registry m_registry;
+
+    ECS::EntityID m_carTranspEntity;
 
 public:
     void start()  override;

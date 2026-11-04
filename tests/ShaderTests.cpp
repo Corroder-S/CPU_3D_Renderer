@@ -7,9 +7,8 @@ TEST(ShaderTests, NullUniformsReturnWhite)
 {
     FragmentInput in;
     ShaderUniforms u;
-    Maths::Vec3f L{ 0.0f, 0.0f, 1.0f };
 
-    Color result = evaluateBlinnPhong(in, u, L);
+    Color result = evaluateBlinnPhong(in, u);
     EXPECT_FLOAT_EQ(result.r, Color::White.r);
     EXPECT_FLOAT_EQ(result.g, Color::White.g);
     EXPECT_FLOAT_EQ(result.b, Color::White.b);
@@ -35,9 +34,10 @@ TEST(ShaderTests, AmbientLightingWhenSurfaceFacesAway)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
 
-    Color finalColor = evaluateBlinnPhong(in, u, light.direction);
+    Color finalColor = evaluateBlinnPhong(in, u);
 
     EXPECT_NEAR(finalColor.r, 0.2f, 1e-4f);
     EXPECT_NEAR(finalColor.g, 0.0f, 1e-4f);
@@ -63,10 +63,11 @@ TEST(ShaderTests, DiffuseLightingFullyAligned)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
     u.cameraPos = Maths::Vec3f{ 0.0f, 0.0f, 5.0f };
 
-    Color finalColor = evaluateBlinnPhong(in, u, light.direction);
+    Color finalColor = evaluateBlinnPhong(in, u);
 
     EXPECT_NEAR(finalColor.r, 0.0f, 1e-4f);
     EXPECT_NEAR(finalColor.g, 1.0f, 1e-4f);
@@ -93,10 +94,11 @@ TEST(ShaderTests, SpecularHighlight)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
     u.cameraPos = Maths::Vec3f{ 0.0f, 1.0f, 1.0f };
 
-    Color finalColor = evaluateBlinnPhong(in, u, light.direction);
+    Color finalColor = evaluateBlinnPhong(in, u);
 
     EXPECT_GT(finalColor.r, 0.0f);
     EXPECT_GT(finalColor.g, 0.0f);
@@ -120,9 +122,10 @@ TEST(ShaderTests, DissolveAffectsFinalAlpha)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
 
-    Color finalColor = evaluateBlinnPhong(in, u, light.direction);
+    Color finalColor = evaluateBlinnPhong(in, u);
 
     EXPECT_NEAR(finalColor.a, 0.4f, 1e-4f);
 }
@@ -142,16 +145,16 @@ TEST(ShaderTests, SIMD8_DiffuseLightingFullyAligned)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
     u.cameraPos = Maths::Vec3f{ 0.0f, 0.0f, 5.0f };
 
     FragmentInput_8 in8{};
     in8.normal.y = _mm256_set1_ps(1.0f);
 
-    Maths::Vec3<__m256> L8 = { _mm256_set1_ps(0.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(0.0f) };
     Maths::Vec3<__m256> C8 = { _mm256_set1_ps(0.0f), _mm256_set1_ps(0.0f), _mm256_set1_ps(5.0f) };
 
-    Color8 result8 = evaluateBlinnPhong_8(in8, u, L8, C8);
+    Color8 result8 = evaluateBlinnPhong_8(in8, u, C8);
 
     alignas(32) float r[8], g[8], b[8], a[8];
     _mm256_store_ps(r, result8.r);
@@ -172,10 +175,9 @@ TEST(ShaderTests, SIMD8_NullUniformsReturnWhite)
 {
     FragmentInput_8 in8{};
     ShaderUniforms u;
-    Maths::Vec3<__m256> L8 = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_set1_ps(1.0f) };
     Maths::Vec3<__m256> C8 = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps() };
 
-    Color8 result8 = evaluateBlinnPhong_8(in8, u, L8, C8);
+    Color8 result8 = evaluateBlinnPhong_8(in8, u, C8);
 
     alignas(32) float r[8], g[8], b[8], a[8];
     _mm256_store_ps(r, result8.r);
@@ -207,15 +209,15 @@ TEST(ShaderTests, SIMD8_AmbientLightingWhenSurfaceFacesAway)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
 
     FragmentInput_8 in8{};
     in8.normal.z = _mm256_set1_ps(-1.0f);
 
-    Maths::Vec3<__m256> L8 = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_set1_ps(1.0f) };
     Maths::Vec3<__m256> C8 = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps() };
 
-    Color8 result8 = evaluateBlinnPhong_8(in8, u, L8, C8);
+    Color8 result8 = evaluateBlinnPhong_8(in8, u, C8);
 
     alignas(32) float r[8], g[8], b[8], a[8];
     _mm256_store_ps(r, result8.r);
@@ -246,16 +248,15 @@ TEST(ShaderTests, SIMD8_SpecularHighlightAndShininess)
 
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
 
     FragmentInput_8 in8{};
     in8.normal.y = _mm256_set1_ps(1.0f);
 
-    float invLen = 1.0f / std::sqrt(2.0f);
-    Maths::Vec3<__m256> L8 = { _mm256_set1_ps(0.0f), _mm256_set1_ps(invLen), _mm256_set1_ps(invLen) };
     Maths::Vec3<__m256> C8 = { _mm256_set1_ps(0.0f), _mm256_set1_ps(1.0f), _mm256_set1_ps(1.0f) };
 
-    Color8 result8 = evaluateBlinnPhong_8(in8, u, L8, C8);
+    Color8 result8 = evaluateBlinnPhong_8(in8, u, C8);
 
     alignas(32) float r[8], g[8], b[8];
     _mm256_store_ps(r, result8.r);
@@ -281,15 +282,15 @@ TEST(ShaderTests, SIMD8_DissolveAffectsFinalAlpha)
     Light light;
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
+    u.lightCount = 1;
 
     FragmentInput_8 in8{};
     in8.normal.y = _mm256_set1_ps(1.0f);
 
-    Maths::Vec3<__m256> L8 = { _mm256_setzero_ps(), _mm256_set1_ps(1.0f), _mm256_setzero_ps() };
     Maths::Vec3<__m256> C8 = { _mm256_setzero_ps(), _mm256_setzero_ps(), _mm256_setzero_ps() };
 
-    Color8 result8 = evaluateBlinnPhong_8(in8, u, L8, C8);
+    Color8 result8 = evaluateBlinnPhong_8(in8, u, C8);
 
     alignas(32) float a[8];
     _mm256_store_ps(a, result8.a);

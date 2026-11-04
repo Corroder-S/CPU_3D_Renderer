@@ -53,13 +53,20 @@ static inline void drawTriangle(
     uint32_t* framebuffer,
     std::vector<float>& zbuffer,
     const ShaderUniforms& uniforms,
-    const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax,
-    int width,
+    Maths::Vec2i renderMin, Maths::Vec2i renderMax,
+    int fbWidth,
     bool writeDepth = true)
 {
-    Maths::Vec3<__m256> L8 = { _mm256_set1_ps(light.direction.x), _mm256_set1_ps(light.direction.y), _mm256_set1_ps(light.direction.z) };
+
+    // ===== PHASE 1 : Scalar Setup =====
+    // 1.1 Setup camera Position into __m256 to use in SIMD shader evaluation
+    // Used Later in the blinn-phong shader evaluation
+
+
     Maths::Vec3<__m256> C8 = { _mm256_set1_ps(uniforms.cameraPos.x), _mm256_set1_ps(uniforms.cameraPos.y), _mm256_set1_ps(uniforms.cameraPos.z) };
 
+
+    // 1.2 Compute bounding box of the triangle in screen space
     int minX = std::max(renderMin.x, std::min({ (int)a.x, (int)b.x, (int)c.x }));
     int maxX = std::min(renderMax.x - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
     int minY = std::max(renderMin.y, std::min({ (int)a.y, (int)b.y, (int)c.y }));
@@ -69,6 +76,10 @@ static inline void drawTriangle(
 
     Maths::Vec3f minPos = { (float)minX + 0.5f, (float)minY + 0.5f, 0.0f };
 
+
+
+    //1.3 Initial edges functions to the triangle edge
+    ////  w0/w1/w2 =  barycentral weight of the first pixel
     int covered = ((maxX - minX) / 8 + 1) * 8;
 
     float w0_row = edge(b, c, minPos);
@@ -78,6 +89,8 @@ static inline void drawTriangle(
     float area = w0_row + w1_row + w2_row;
     float invArea = 1.0f / area;
 
+
+    //1.4 Compute the gradient of the edge functions to compute the barycentric coordinates of each pixel in the triangle
     float dw0_dx = edge_dxdy(b.y, c.y);
     float dw0_dy = edge_dxdy(c.x, b.x);
     float dw1_dx = edge_dxdy(c.y, a.y);
@@ -85,10 +98,12 @@ static inline void drawTriangle(
     float dw2_dx = edge_dxdy(a.y, b.y);
     float dw2_dy = edge_dxdy(b.x, a.x);
 
+    //1.5 Normalized Gradients by the area (fw -w * invArea)
     float dfw0_dx = dw0_dx * invArea, dfw0_dy = dw0_dy * invArea;
     float dfw1_dx = dw1_dx * invArea, dfw1_dy = dw1_dy * invArea;
     float dfw2_dx = dw2_dx * invArea, dfw2_dy = dw2_dy * invArea;
 
+    //1.6 Compute the gradient of the depth to compute the depth of each pixel in the triangle
     float dz_dx = dfw0_dx * a.z + dfw1_dx * b.z + dfw2_dx * c.z;
     float dz_dy = dfw0_dy * a.z + dfw1_dy * b.z + dfw2_dy * c.z;
 
@@ -96,7 +111,7 @@ static inline void drawTriangle(
     float fw1_row = w1_row * invArea;
     float fw2_row = w2_row * invArea;
 
-    // Interpolation UVs et 1/W
+    //1.7 Interpolation of  UVs and 1/W
     float uw_row = fw0_row * uvx.x * invW.x + fw1_row * uvy.x * invW.y + fw2_row * uvz.x * invW.z;
     float vw_row = fw0_row * uvx.y * invW.x + fw1_row * uvy.y * invW.y + fw2_row * uvz.y * invW.z;
     float iw_row = fw0_row * invW.x + fw1_row * invW.y + fw2_row * invW.z;
@@ -109,9 +124,10 @@ static inline void drawTriangle(
     float dvw_dy = dfw0_dy * uvx.y * invW.x + dfw1_dy * uvy.y * invW.y + dfw2_dy * uvz.y * invW.z;
     float diw_dy = dfw0_dy * invW.x + dfw1_dy * invW.y + dfw2_dy * invW.z;
 
+    //1.8 Interpolation of Depth
     float z_row = fw0_row * a.z + fw1_row * b.z + fw2_row * c.z;
 
-    // Interpolation des Normales
+    //1.9 Interpolation of Normals
     float dnx_dx = dfw0_dx * wn0.x + dfw1_dx * wn1.x + dfw2_dx * wn2.x;
     float dny_dx = dfw0_dx * wn0.y + dfw1_dx * wn1.y + dfw2_dx * wn2.y;
     float dnz_dx = dfw0_dx * wn0.z + dfw1_dx * wn1.z + dfw2_dx * wn2.z;
@@ -123,7 +139,7 @@ static inline void drawTriangle(
     float ny_row = fw0_row * wn0.y + fw1_row * wn1.y + fw2_row * wn2.y;
     float nz_row = fw0_row * wn0.z + fw1_row * wn1.z + fw2_row * wn2.z;
 
-    // Interpolation des Positions Monde
+    //1.10 Interpolation of World Positions
     float pxw_row = fw0_row * wp0.x * invW.x + fw1_row * wp1.x * invW.y + fw2_row * wp2.x * invW.z;
     float pyw_row = fw0_row * wp0.y * invW.x + fw1_row * wp1.y * invW.y + fw2_row * wp2.y * invW.z;
     float pzw_row = fw0_row * wp0.z * invW.x + fw1_row * wp1.z * invW.y + fw2_row * wp2.z * invW.z;
@@ -136,47 +152,70 @@ static inline void drawTriangle(
     float dpyw_dy = dfw0_dy * wp0.y * invW.x + dfw1_dy * wp1.y * invW.y + dfw2_dy * wp2.y * invW.z;
     float dpzw_dy = dfw0_dy * wp0.z * invW.x + dfw1_dy * wp1.z * invW.y + dfw2_dy * wp2.z * invW.z;
 
-    int idx = minY * width + minX;
+    int idx = minY * fbWidth + minX;
     __m256 maxXV = _mm256_set1_ps((float)maxX + 0.5f);
 
+    // ===== PHASE 2 : SIMD Rasterization =====
     for (uint32_t y = minY; y <= maxY; y++)
     {
+
+        // 2.1 Setup the barycentric coordinates for the first pixel in the row
         __m256 w0 = _mm256_set_ps(w0_row + 7 * dw0_dx, w0_row + 6 * dw0_dx, w0_row + 5 * dw0_dx, w0_row + 4 * dw0_dx, w0_row + 3 * dw0_dx, w0_row + 2 * dw0_dx, w0_row + 1 * dw0_dx, w0_row);
         __m256 w1 = _mm256_set_ps(w1_row + 7 * dw1_dx, w1_row + 6 * dw1_dx, w1_row + 5 * dw1_dx, w1_row + 4 * dw1_dx, w1_row + 3 * dw1_dx, w1_row + 2 * dw1_dx, w1_row + 1 * dw1_dx, w1_row);
         __m256 w2 = _mm256_set_ps(w2_row + 7 * dw2_dx, w2_row + 6 * dw2_dx, w2_row + 5 * dw2_dx, w2_row + 4 * dw2_dx, w2_row + 3 * dw2_dx, w2_row + 2 * dw2_dx, w2_row + 1 * dw2_dx, w2_row);
 
+        // 2.2 Setup the interpolated attributes for the first pixel in the row
         __m256 uw = _mm256_set_ps(uw_row + 7 * duw_dx, uw_row + 6 * duw_dx, uw_row + 5 * duw_dx, uw_row + 4 * duw_dx, uw_row + 3 * duw_dx, uw_row + 2 * duw_dx, uw_row + 1 * duw_dx, uw_row);
         __m256 vw = _mm256_set_ps(vw_row + 7 * dvw_dx, vw_row + 6 * dvw_dx, vw_row + 5 * dvw_dx, vw_row + 4 * dvw_dx, vw_row + 3 * dvw_dx, vw_row + 2 * dvw_dx, vw_row + 1 * dvw_dx, vw_row);
         __m256 iw = _mm256_set_ps(iw_row + 7 * diw_dx, iw_row + 6 * diw_dx, iw_row + 5 * diw_dx, iw_row + 4 * diw_dx, iw_row + 3 * diw_dx, iw_row + 2 * diw_dx, iw_row + 1 * diw_dx, iw_row);
 
+        // 2.3 Setup the interpolated depth for the first pixel in the row
         __m256 z = _mm256_set_ps(z_row + 7 * dz_dx, z_row + 6 * dz_dx, z_row + 5 * dz_dx, z_row + 4 * dz_dx, z_row + 3 * dz_dx, z_row + 2 * dz_dx, z_row + 1 * dz_dx, z_row);
 
+
+        // 2.4 Setup the interpolated normals for the first pixel in the row
         __m256 nx = _mm256_set_ps(nx_row + 7 * dnx_dx, nx_row + 6 * dnx_dx, nx_row + 5 * dnx_dx, nx_row + 4 * dnx_dx, nx_row + 3 * dnx_dx, nx_row + 2 * dnx_dx, nx_row + 1 * dnx_dx, nx_row);
         __m256 ny = _mm256_set_ps(ny_row + 7 * dny_dx, ny_row + 6 * dny_dx, ny_row + 5 * dny_dx, ny_row + 4 * dny_dx, ny_row + 3 * dny_dx, ny_row + 2 * dny_dx, ny_row + 1 * dny_dx, ny_row);
         __m256 nz = _mm256_set_ps(nz_row + 7 * dnz_dx, nz_row + 6 * dnz_dx, nz_row + 5 * dnz_dx, nz_row + 4 * dnz_dx, nz_row + 3 * dnz_dx, nz_row + 2 * dnz_dx, nz_row + 1 * dnz_dx, nz_row);
 
+        // 2.5 Setup the interpolated world positions for the first pixel in the row
         __m256 pxw = _mm256_set_ps(pxw_row + 7 * dpxw_dx, pxw_row + 6 * dpxw_dx, pxw_row + 5 * dpxw_dx, pxw_row + 4 * dpxw_dx, pxw_row + 3 * dpxw_dx, pxw_row + 2 * dpxw_dx, pxw_row + 1 * dpxw_dx, pxw_row);
         __m256 pyw = _mm256_set_ps(pyw_row + 7 * dpyw_dx, pyw_row + 6 * dpyw_dx, pyw_row + 5 * dpyw_dx, pyw_row + 4 * dpyw_dx, pyw_row + 3 * dpyw_dx, pyw_row + 2 * dpyw_dx, pyw_row + 1 * dpyw_dx, pyw_row);
         __m256 pzw = _mm256_set_ps(pzw_row + 7 * dpzw_dx, pzw_row + 6 * dpzw_dx, pzw_row + 5 * dpzw_dx, pzw_row + 4 * dpzw_dx, pzw_row + 3 * dpzw_dx, pzw_row + 2 * dpzw_dx, pzw_row + 1 * dpzw_dx, pzw_row);
 
+
+        // 2.6 Setup the x coordinates for the first pixel in the row
         __m256 xVec = _mm256_set_ps((float)minX + 7.0f, (float)minX + 6.0f, (float)minX + 5.0f, (float)minX + 4.0f, (float)minX + 3.0f, (float)minX + 2.0f, (float)minX + 1.0f, (float)minX + 0.0f);
 
+        //all 8 pixel loops
         for (uint32_t x = minX; x <= maxX; x += 8)
         {
 
+            // 2.7 — Triangle coverage test: pixel is inside if all 3 edge weights >= 0
+            //If the pixel is inside the triangle draw it, otherwise discard it
             __m256 zero  = _mm256_setzero_ps();
             __m256 mask0 = _mm256_cmp_ps(w0, zero, _CMP_GE_OS);
             __m256 mask1 = _mm256_cmp_ps(w1, zero, _CMP_GE_OS);
             __m256 mask2 = _mm256_cmp_ps(w2, zero, _CMP_GE_OS);
             __m256 triMask = _mm256_and_ps(_mm256_and_ps(mask0, mask1), mask2);
 
+            // 2.8 — Depth test: pixel passes if its z <= current z-buffer value
+            //if the pixel is closer to the camera than the current depth buffer value, draw it, otherwise discard it
             __m256 zbufferVec = _mm256_loadu_ps(&zbuffer[idx]);
             __m256 depthMask = _mm256_cmp_ps(z, zbufferVec, _CMP_LE_OS);
 
+
+            // 2.9 — Bounds mask: discard pixels beyond the triangle's bounding box
             __m256 boundsMask = _mm256_cmp_ps(xVec, maxXV, _CMP_LE_OS);
 
+            // 2.10 — Combine coverage, depth, and bounds masks into final write mask
             __m256 finalMask = _mm256_and_ps(_mm256_and_ps(triMask, depthMask), boundsMask);
 
+
+
+
+
+            // 2.11 — End-of-row mask: disables lanes beyond remaining pixels
             int remaining = (int)maxX - (int)x + 1;
             if (remaining < 8) {
                 __m256i boundsMask = _mm256_cmpgt_epi32(
@@ -186,28 +225,36 @@ static inline void drawTriangle(
                 finalMask = _mm256_and_ps(finalMask, _mm256_castsi256_ps(boundsMask));
             }
 
+            // 2.13 — Masked z-buffer write (opaque only, transparent triangles skip this)
             if (!_mm256_testz_ps(finalMask, finalMask))
             {
+                // 2.13 — Masked z-buffer write (opaque only, transparent triangles skip this)
                 if (writeDepth)
                 {
                     _mm256_maskstore_ps(&zbuffer[idx], _mm256_castps_si256(finalMask), z);
                 }
 
+
+                // 2.14 — Perspective correction: compute 1/w to recover true interpolated values
                 __m256 inv_iw = _mm256_rcp_ps(iw);
 
+                // 2.15 — Recover perspective-correct UVs and world positions (multiply by 1/w)
                 __m256 u = _mm256_mul_ps(uw, inv_iw);
                 __m256 v = _mm256_mul_ps(vw, inv_iw);
                 __m256 worldPosX = _mm256_mul_ps(pxw, inv_iw);
                 __m256 worldPosY = _mm256_mul_ps(pyw, inv_iw);
                 __m256 worldPosZ = _mm256_mul_ps(pzw, inv_iw);
 
+                // 2.16 — Build fragment input and run Blinn-Phong shader on 8 pixels
                 FragmentInput_8 frag;
                 frag.uv = { u, v };
                 frag.normal = { nx, ny, nz };
                 frag.worldPos = { worldPosX, worldPosY, worldPosZ };
 
-                Color8 color = evaluateBlinnPhong_8(frag, uniforms, L8, C8);
+                Color8 color = evaluateBlinnPhong_8(frag, uniforms, C8);
 
+                // 2.17 — Alpha blending (src over): load existing framebuffer pixels,
+                //         blend dst = dst * (1 - alpha) + src * alpha per channel
                 __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(finalMask));
 
                 __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
@@ -222,6 +269,7 @@ static inline void drawTriangle(
                 dstG = _mm256_add_ps(dstG, _mm256_mul_ps(_mm256_mul_ps(color.g, _mm256_set1_ps(255.0f)), color.a));
                 dstB = _mm256_add_ps(dstB, _mm256_mul_ps(_mm256_mul_ps(color.b, _mm256_set1_ps(255.0f)), color.a));
 
+                // 2.18 — Pack ARGB channels into uint32 and masked write to framebuffer
                 __m256i ri = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstR, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
                 __m256i gi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstG, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
                 __m256i bi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstB, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
@@ -235,6 +283,7 @@ static inline void drawTriangle(
                 _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(finalMask), packed);
             }
 
+            // 2.19 — Advance all interpolated attributes by 8 pixels in X (incremental, no recompute)
             w0 = _mm256_add_ps(w0, _mm256_set1_ps(dw0_dx * 8));
             w1 = _mm256_add_ps(w1, _mm256_set1_ps(dw1_dx * 8));
             w2 = _mm256_add_ps(w2, _mm256_set1_ps(dw2_dx * 8));
@@ -253,8 +302,8 @@ static inline void drawTriangle(
 
             idx += 8;
         }
-
-        idx += width - covered;
+        // 2.20 — Advance framebuffer index to next scanline, step all row values by dy
+        idx += fbWidth - covered;
         z_row += dz_dy;
         uw_row += duw_dy; vw_row += dvw_dy; iw_row += diw_dy;
         nx_row += dnx_dy; ny_row += dny_dy; nz_row += dnz_dy;

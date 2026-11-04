@@ -48,7 +48,7 @@ TEST_F(RasterizationTests, TriangleRasterizationFillsInsidePixels)
 
     ShaderUniforms uniforms;
     uniforms.material = &mat;
-    uniforms.light = &light;
+    uniforms.lights = &light;
 
     Maths::Vec2i renderMin{ 0, 0 };
     Maths::Vec2i renderMax{ width, height };
@@ -77,7 +77,7 @@ TEST_F(RasterizationTests, TriangleZBufferRejection)
     Light light;
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
 
     Maths::Vec3f a{ 10.0f, 10.0f, 0.2f };
     Maths::Vec3f b{ 30.0f, 10.0f, 0.2f };
@@ -113,7 +113,7 @@ TEST_F(RasterizationTests, RespectsRenderMinAndMaxBounds)
     Light light;
     ShaderUniforms u;
     u.material = &mat;
-    u.light = &light;
+    u.lights = &light;
 
     Maths::Vec3f a{ 0.0f, 0.0f, 0.5f };
     Maths::Vec3f b{ 50.0f, 0.0f, 0.5f };

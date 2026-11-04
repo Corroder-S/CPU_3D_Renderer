@@ -17,7 +17,7 @@ void ParticleManager::initialize(uint32_t maxParticles, uint32_t numPools)
     m_systemsPerPool.resize(numPools);
 }
 
-void ParticleManager::createSystem(const emitterConfig& config, const Maths::Vec3f& position)
+particleSystem* ParticleManager::createSystem(const emitterConfig& config, const Maths::Vec3f& position)
 {
     auto& memoryManager = ParticleMemoryManager::GetInstance();
     const uint32_t poolID = memoryManager.getBestPoolIdForNewParticles();
@@ -27,12 +27,13 @@ void ParticleManager::createSystem(const emitterConfig& config, const Maths::Vec
     if (!system)
     {
         assert(false && "Failed to create particle system: pool is full");
-        return;
+        return nullptr;
     }
 
     system->setPoolID(poolID);
     system->addEmitter(config);
     m_systemsPerPool[poolID].push_back(system);
+    return system;
 }
 
 void ParticleManager::destroySystem(particleSystem* system)
