@@ -101,11 +101,18 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
 
 void Renderer::beginFrame(const Camera& cam, float aspectRatio)
 {
+    m_timeMeshMs = 0.0;
+
+    auto t0 = Clock::now();
+
     m_screenTriangles.clear();
     m_opaqueTriangles.clear();
     m_transparentTriangles.clear();
     for (auto& bin : m_tileBins)
         bin.clear();
+
+    auto t1 = Clock::now();
+    m_timeClearBinsMs = toMs(t0, t1);
 
     auto view = cam.getViewMatrix();
     auto proj = cam.getProjMatrix(aspectRatio);
@@ -117,6 +124,8 @@ void Renderer::beginFrame(const Camera& cam, float aspectRatio)
 void Renderer::submitMesh(const Mesh& mesh, const Transform& transform,
                           const Material& material)
 {
+    auto t0 = Clock::now();
+
     auto model = transform.getModelMatrix();
     auto MVP = m_viewProj * model;
 
@@ -126,10 +135,14 @@ void Renderer::submitMesh(const Mesh& mesh, const Transform& transform,
     auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
 
     drawMesh(mesh, MVP, model, uniforms, isTransparent, targetList);
+
+    m_timeMeshMs += toMs(t0, Clock::now());
 }
 
 void Renderer::endFrame()
 {
+    auto tBin0 = Clock::now();
+
     if (!m_opaqueTriangles.empty())
     {
         for (auto& tri : m_opaqueTriangles)
@@ -178,7 +191,11 @@ void Renderer::endFrame()
         }
     }
 
+    auto tBin1 = Clock::now();
+    m_timeBinMs = toMs(tBin0, tBin1);
+
     // Fork
+    auto tRaster0 = Clock::now();
     m_tileCounter = 0;
     for (int i = 0; i < m_numWorkers; i++) {
         std::lock_guard<std::mutex> lock(m_workers[i]->mutex);
@@ -190,7 +207,10 @@ void Renderer::endFrame()
         std::unique_lock<std::mutex> lock(m_workers[i]->mutex);
         m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });
     }
+    auto tRaster1 = Clock::now();
+    m_timeRasterMs = toMs(tRaster0, tRaster1);
 
+    m_timeSceneMs = m_timeMeshMs + m_timeBinMs + m_timeRasterMs;
 }
 
 void Renderer::setLights(const Light* lights, uint32_t count)
