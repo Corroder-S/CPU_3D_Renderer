@@ -24,68 +24,12 @@ FetchContent_MakeAvailable(nlohmann_json)
 add_subdirectory(Maths)
 
 
-add_executable(cpu_renderer_sdl
-        Editor/main.cpp
-        Editor/Application.cpp
-        Editor/Application.h
-        src/Parsing/ObjLoader.cpp
-        src/Parsing/MtlLoader.cpp
-        src/Platform/MemoryMappedFile.h
-        src/Platform/MemoryMappedFile.cpp
-        src/Asset/Mesh.h
-        src/Asset/Texture.cpp
-        src/Asset/Light.h
-        src/Asset/Mesh.cpp
-        src/Renderer/clip.h
-        src/Engine/Engine.cpp
-        src/Engine/Engine.h
-        src/Engine/Time.cpp
-        src/Engine/Time.h
-        src/Renderer/Renderer.cpp
-        src/Renderer/Renderer.h
-        src/Asset/Material.h
-        src/Asset/Color.h
-        src/Renderer/Shader.h
-        src/Parsing/MtlLoader.h
-        src/Asset/Font.h
-        src/Asset/Font.cpp
-        src/Renderer/Emitter/EmitterConfig.h
-        src/Renderer/Emitter/EmitterConfig.cpp
-        src/Renderer/Emitter/Particle.h
-        src/Renderer/Emitter/Particle.cpp
-        src/Renderer/Emitter/particleEmitter.h
-        src/Renderer/Emitter/particleEmitter.cpp
-        src/Renderer/Emitter/ParticleSystem.h
-        src/Renderer/Emitter/ParticleSystem.cpp
-        src/Renderer/Emitter/ParticleMemoryPools.h
-        src/Renderer/Emitter/ParticleMemoryPools.cpp
-        src/Renderer/Emitter/ParticleMemoryManager.h
-        src/Renderer/Emitter/ParticleMemoryManager.cpp
-        src/Renderer/Emitter/ParticleUpdateJob.h
-        src/Renderer/Emitter/ParticleUpdateJob.cpp
-        src/Renderer/Emitter/MasterParticleVertexBuffer.h
-        src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
-        src/Renderer/Emitter/ParticleManager.h
-        src/Renderer/Emitter/ParticleManager.cpp
-        src/ECS/headers/Archetypes.h
-        src/ECS/detail/component_registry.inl
-        src/ECS/detail/entity_component.inl
-        src/ECS/detail/paged_allocator.inl
-        src/ECS/detail/registry.inl
-        src/ECS/headers/component_registry.h
-        src/ECS/headers/entity_component.h
-        src/ECS/headers/paged_allocator.h
-        src/ECS/headers/registry.h
-        src/ECS/headers/ChunkPool.h
-        src/ECS/headers/ComponentMetaRegistry.h
-        src/Scene/Component.h
-        src/ECS/headers/ISystem.h
-        src/Renderer/Emitter/WorkerPool.h
-        src/Renderer/TerrainGenerator.h
-        src/Engine/CameraController.h
-        Editor/System/RendererSystem.h
-        Editor/System/RendererSystem.cpp
+file(GLOB_RECURSE SRC_FILES
+        src/*.cpp src/*.h src/*.inl
+        Editor/*.cpp Editor/*.h
 )
+
+add_executable(cpu_renderer_sdl ${SRC_FILES})
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 

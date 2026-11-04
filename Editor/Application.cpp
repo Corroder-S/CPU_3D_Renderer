@@ -5,17 +5,17 @@
 
 #include "Engine/Time.h"
 #include "Renderer/Emitter/ParticleMemoryManager.h"
-#include "Scene/Component.h"
+#include "Component.h"
 
 void Application::start()
 {
 
-    if (!m_font.load(ASSETS_PATH "fonts/Paladins.ttf", 20.0f)) {
+    if (!m_font.load(ASSETS_PATH "fonts/paladins.ttf", 20.0f)) {
         SDL_Log("Erreur lors du chargement de la police !");
     }
 
     Material loadedMaterial;
-    m_mesh = LoadMesh(ASSETS_PATH "car1.obj", loadedMaterial);
+    m_mesh = LoadMesh(ASSETS_PATH "Models/Car1.obj", loadedMaterial);
 
 
     RenderObject carOpaque;
@@ -77,7 +77,7 @@ void Application::start()
     m_particleManager.initialize(10000, 4);
 
 
-    emitterConfig config = loadFromJson(ASSETS_PATH "fire.json");
+    emitterConfig config = loadFromJson(ASSETS_PATH "Particles/fire.json");
 
     auto* sys = m_particleManager.createSystem(config, { 0, 0, 0 });
     entity = m_registry.createEntity();
@@ -85,6 +85,33 @@ void Application::start()
 
     m_renderer.setParticleManager(&m_particleManager);
     m_rendererSystem = std::make_unique<RendererSystem>(m_registry, m_renderer);
+    m_uiSystem = std::make_unique<UISystem>(m_registry);
+
+    m_FpsTextEntity = m_registry.createEntity();
+    m_registry.addComponent<TextComponent>(m_FpsTextEntity, Text{15, 15, &m_font, Color::Green, "FPS: 0", 100});
+    entity = m_registry.createEntity();
+    m_registry.addComponent<TextComponent>(entity, Text{15, 40, &m_font, Color::White, "Les tenebres", 100});
+
+    // Canvas de debug UI
+    entity = m_registry.createEntity();
+    m_registry.addComponent<CanvaComponent>(entity, Canva{20, 80, 220, 160, 0xAA111111, 0});
+
+    entity = m_registry.createEntity();
+    m_registry.addComponent<TextComponent>(entity, Text{30, 90, &m_font, Color::White, "Scene Info", 1});
+
+    entity = m_registry.createEntity();
+    m_registry.addComponent<TextComponent>(entity, Text{30, 115, &m_font, Color{0.7f, 0.7f, 0.7f, 1.0f}, "Terrain: 64x64", 1});
+
+    entity = m_registry.createEntity();
+    m_registry.addComponent<TextComponent>(entity, Text{30, 140, &m_font, Color{0.7f, 0.7f, 0.7f, 1.0f}, "Meshes: Car + Terrain", 1});
+
+    // Image
+    m_uiImage = std::make_shared<Texture>();
+    if (m_uiImage->load(ASSETS_PATH "Image/EmperorOfManKind.jpg"))
+    {
+        entity = m_registry.createEntity();
+        m_registry.addComponent<ImageComponent>(entity, Image{20, 260, 150, 150, m_uiImage.get(), 0});
+    }
 
 }
 
@@ -107,8 +134,14 @@ void Application::update()
 
     m_rendererSystem->update(dt);
     int fps = (dt > 0.0f) ? static_cast<int>(1.0f / dt) : 0;
-    m_renderer.drawText(m_font, "FPS: " + std::to_string(fps), 15, 15, Color::Green);
-    m_renderer.drawText(m_font, "Les tenebres", 15, 40, Color::White);
+    m_registry.getComponent<TextComponent>(m_FpsTextEntity).text.text = "FPS: " + std::to_string(fps);
+    m_uiSystem->update(                  // UI par-dessus
+        m_renderer.getFrameBuffer(),
+        m_renderer.getWidth(),
+        m_renderer.getHeight()
+    );
+
+
     m_particleManager.update(dt);
 
     auto viewProj = activeCamera->getProjMatrix((float)m_renderer.getWidth() / m_renderer.getHeight())

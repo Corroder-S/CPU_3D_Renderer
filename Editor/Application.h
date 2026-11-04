@@ -9,6 +9,7 @@
 #include "Scene/RenderObject.h"
 #include "SDL3/SDL_timer.h"
 #include "System/RendererSystem.h"
+#include "System/UISystem.h"
 
 
 class Application : public Engine
@@ -17,13 +18,16 @@ class Application : public Engine
     Mesh             m_terrainMesh;
     Font             m_font;
     std::shared_ptr<Texture> m_texture;
+    std::shared_ptr<Texture> m_uiImage;
     ParticleManager  m_particleManager;
     CameraController m_cameraController{ 10.0f };
 
     std::unique_ptr<RendererSystem> m_rendererSystem;
+    std::unique_ptr<UISystem> m_uiSystem;
     ECS::Registry m_registry;
 
     ECS::EntityID m_carTranspEntity;
+    ECS::EntityID m_FpsTextEntity;
 
 public:
     void start()  override;

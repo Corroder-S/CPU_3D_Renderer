@@ -4,7 +4,7 @@
 
 #include "RendererSystem.h"
 
-#include "Scene/Component.h"
+#include "../Component.h"
 
 void RendererSystem::update(float deltaTime)
 {
