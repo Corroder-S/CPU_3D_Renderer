@@ -36,26 +36,30 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
     const ShaderUniforms& uniforms,
     bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
 {
-    size_t vertexCount = mesh.vertices.size();
+    const size_t vertexCount = mesh.vertices.size();
 
     m_clipPositions.resize(vertexCount);
-    m_worldNormals.resize(vertexCount);
     m_worldPositions.resize(vertexCount);
 
     for (size_t i = 0; i < vertexCount; ++i)
     {
         m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
-        m_worldNormals[i] = model.TransformDirection(mesh.vertexNormals[i]);
 
         Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
         m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
     }
 
-    for (auto& f : mesh.faces)
+    for (size_t fi = 0; fi < mesh.faces.size(); ++fi)
     {
-        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x], m_worldPositions[f.v.x] };
-        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z], m_worldPositions[f.v.z] };
-        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y], m_worldPositions[f.v.y] };
+        const auto& f = mesh.faces[fi];
+
+        const Maths::Vec3f n0 = Maths::Normalize(model.TransformDirection(mesh.cornerNormals[fi * 3 + 0]));
+        const Maths::Vec3f n1 = Maths::Normalize(model.TransformDirection(mesh.cornerNormals[fi * 3 + 1]));
+        const Maths::Vec3f n2 = Maths::Normalize(model.TransformDirection(mesh.cornerNormals[fi * 3 + 2]));
+
+        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], n0, m_worldPositions[f.v.x] };
+        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], n1, m_worldPositions[f.v.z] };
+        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], n2, m_worldPositions[f.v.y] };
 
         ClipVertex clipped[6];
         int numTris = clipTriangleNear(v0, v1, v2, clipped);
