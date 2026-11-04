@@ -107,7 +107,6 @@ add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
         $<TARGET_FILE_DIR:cpu_renderer_sdl>
 )
 
-add_subdirectory(ecs_sandbox)
 
 option(BUILD_TESTS "Build unit tests" ON)
 

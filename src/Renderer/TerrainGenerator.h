@@ -28,11 +28,6 @@ public:
         int numVerticesX = params.width + 1;
         int numVerticesZ = params.depth + 1;
 
-        auto GetHeight = [&](float x, float z) -> float {
-            float n = perlin.fbm(x * params.frequency, z * params.frequency,
-                params.octaves, params.persistence, params.lacunarity);
-            return n * params.heightScale;
-            };
 
         float offsetX = (params.width * params.cellSize) * 0.5f;
         float offsetZ = (params.depth * params.cellSize) * 0.5f;
@@ -44,7 +39,8 @@ public:
             for (int x = 0; x < numVerticesX; ++x) {
                 float worldX = x * params.cellSize;
                 float worldZ = z * params.cellSize;
-                float height = GetHeight(worldX, worldZ);
+
+                float height = perlin.fbm(worldX * params.frequency,worldZ * params.frequency,params.octaves,params.persistence,params.lacunarity) * params.heightScale;
 
                 mesh.vertices.push_back({ worldX - offsetX, height, worldZ - offsetZ });
                 mesh.uvs.push_back({ (float)x / params.width, (float)z / params.depth });

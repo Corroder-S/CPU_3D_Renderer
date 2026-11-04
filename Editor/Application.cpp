@@ -40,9 +40,10 @@ void Application::start()
     terrainParams.width = 64;
     terrainParams.depth = 64;
     terrainParams.cellSize = 0.5f;
-    terrainParams.heightScale = 4.0f;
-    terrainParams.frequency = 0.04f;
-    terrainParams.octaves = 4;
+    terrainParams.heightScale = 8.0f;
+    terrainParams.frequency = 0.1f;
+    terrainParams.octaves = 8;
+    terrainParams.seed = 65565;
 
     m_terrainMesh = TerrainGenerator::Generate(terrainParams);
 
