@@ -31,6 +31,8 @@ emitterConfig loadFromJson(const std::string& filename)
     config.endColor = jsonConfig.value("endColor", 0x00FFFFFF);
     config.blendMode = jsonConfig.value("blendMode", 0);
     config.gravityScale = jsonConfig.value("gravityScale", 1.0f);
+    config.spreadAngle = jsonConfig.value("spreadAngle", 0.0f);
+    config.looping = jsonConfig.value("looping", true);
 
     return config;
 }
