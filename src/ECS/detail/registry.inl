@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
 
 #include "ECS/headers/registry.h"
 
@@ -55,7 +56,7 @@ namespace ECS
     T& Registry::addComponent(EntityID entityID, Args&&... args)
     {
         uint32_t id = ComponentIDGenerator::get<T>();
-        ComponentMetaRegistry::reg<T>();
+        ComponentMetaRegistry::ensureReg<T>();
         EntityRecord& record = m_records.get(entityID & VALUE_MASK);
         Archetypes* currentArchetype = record.archetype;
         std::vector<uint32_t> newIDS = currentArchetype->m_componentTypeList;
@@ -71,15 +72,30 @@ namespace ECS
         {
             migrateEntity(currentArchetype, newArch, record);
         }
-        auto it = std::lower_bound(newArch->m_componentTypeList.begin(), newArch->m_componentTypeList.end(), id);
-        size_t col = std::distance(newArch->m_componentTypeList.begin(), it);
-        Column& column = newArch->m_componentData[col];
-        Chunk* destChunk = column.getOrAddChunk(m_chunkPool, newArch->chunkCapacity);
-        std::byte* newData = destChunk->m_chunk + destChunk->m_count * ComponentMetaRegistry::get<T>().stride;
-        new(newData) T(std::forward<Args>(args)...);
-        destChunk->m_count++;
-        return *reinterpret_cast<T*>(newData);
+        return placeComponent(newArch, T(std::forward<Args>(args)...));
     }
+
+    template<typename... Ts>
+    void Registry::addComponents(EntityID entityID, Ts&&... components)
+    {
+        EntityRecord& record = m_records.get(entityID & VALUE_MASK);
+        Archetypes* currentArchetype = record.archetype;
+        (ComponentMetaRegistry::ensureReg<std::decay_t<Ts>>(), ...);
+        auto newIDS = currentArchetype->m_componentTypeList;
+        for (uint32_t id : { ComponentIDGenerator::get<std::decay_t<Ts>>()... }) {
+            if (std::find(newIDS.begin(), newIDS.end(), id) == newIDS.end()) {
+                auto pos = std::lower_bound(newIDS.begin(), newIDS.end(), id);
+                newIDS.insert(pos, id);
+            }
+        }
+        auto newArch = getOrCreateArchetype(newIDS);
+        if (currentArchetype != newArch)
+        {
+            migrateEntity(currentArchetype, newArch, record);
+        }
+        (placeComponent(newArch, std::forward<Ts>(components)), ...);
+    }
+
 
     template<typename T>
     T & Registry::getComponent(EntityID entityID)
@@ -90,7 +106,7 @@ namespace ECS
         auto it = std::lower_bound(currentArchetype->m_componentTypeList.begin(), currentArchetype->m_componentTypeList.end(), id);
         if (it == currentArchetype->m_componentTypeList.end() || *it != id)
         {
-            assert(false && "getComponent: entity does not have component");
+            throw(std::runtime_error("getComponent: entity does not have component"));
         }
         size_t col = std::distance(currentArchetype->m_componentTypeList.begin(), it);
         Column& column = currentArchetype->m_componentData[col];
@@ -133,7 +149,6 @@ namespace ECS
         {
             migrateEntity(currentArchetype, newArch, record);
         }
-
     }
 
 
@@ -179,7 +194,7 @@ namespace ECS
     }
 
 
-    Archetypes* Registry::getOrCreateArchetype(const  std::vector<uint32_t>& componentIDs)
+    inline Archetypes* Registry::getOrCreateArchetype(const  std::vector<uint32_t>& componentIDs)
     {
         for (auto *arch : m_archetypes)
         {
@@ -295,5 +310,18 @@ namespace ECS
         EntityRecord& record = m_records.get(toRemove & VALUE_MASK);
         migrateEntity(record.archetype, m_emptyArchetype, record);
         m_idGenerator.destroyEntity(toRemove);
+    }
+
+    template<typename T>
+    T& Registry::placeComponent(Archetypes* arch, T&& component) {
+        uint32_t id = ECS::ComponentIDGenerator::get<std::decay_t<T>>();
+        auto it = std::lower_bound(arch->m_componentTypeList.begin(), arch->m_componentTypeList.end(), id);
+        size_t col = std::distance(arch->m_componentTypeList.begin(), it);
+        Column& column = arch->m_componentData[col];
+        Chunk* destChunk = column.getOrAddChunk(m_chunkPool, arch->chunkCapacity);
+        std::byte* newData = destChunk->m_chunk + destChunk->m_count * ComponentMetaRegistry::get<std::decay_t<T>>().stride;
+        new(newData) std::decay_t<T>(std::forward<T>(component));
+        destChunk->m_count++;
+        return *reinterpret_cast<std::decay_t<T>*>(newData);
     }
 }

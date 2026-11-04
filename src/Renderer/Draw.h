@@ -53,11 +53,10 @@ static inline void drawTriangle(
     uint32_t* framebuffer,
     std::vector<float>& zbuffer,
     const ShaderUniforms& uniforms,
-    const Light& light, Maths::Vec2i renderMin, Maths::Vec2i renderMax,
+    Maths::Vec2i renderMin, Maths::Vec2i renderMax,
     int fbWidth,
     bool writeDepth = true)
 {
-    Maths::Vec3<__m256> L8 = { _mm256_set1_ps(light.direction.x), _mm256_set1_ps(light.direction.y), _mm256_set1_ps(light.direction.z) };
     Maths::Vec3<__m256> C8 = { _mm256_set1_ps(uniforms.cameraPos.x), _mm256_set1_ps(uniforms.cameraPos.y), _mm256_set1_ps(uniforms.cameraPos.z) };
 
     int minX = std::max(renderMin.x, std::min({ (int)a.x, (int)b.x, (int)c.x }));
@@ -206,7 +205,7 @@ static inline void drawTriangle(
                 frag.normal = { nx, ny, nz };
                 frag.worldPos = { worldPosX, worldPosY, worldPosZ };
 
-                Color8 color = evaluateBlinnPhong_8(frag, uniforms, L8, C8);
+                Color8 color = evaluateBlinnPhong_8(frag, uniforms, C8);
 
                 __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(finalMask));
 

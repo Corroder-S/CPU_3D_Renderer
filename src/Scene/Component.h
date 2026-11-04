@@ -1,29 +1,37 @@
 ﻿#pragma once
+#include "Camera.h"
+#include "Asset/Light.h"
 #include "Asset/Material.h"
+#include "Asset/Mesh.h"
 #include "Maths/Vec3.h"
+#include "Renderer/Emitter/EmitterConfig.h"
 
-struct TransformComponent
-{
-    Maths::Vec3f position = { 0.0f, 0.0f, 0.0f };
-    Maths::Vec3f rotation = { 0.0f, 0.0f, 0.0f }; // euler angles (radians)
-    Maths::Vec3f scale    = { 1.0f, 1.0f, 1.0f };
-};
 
 
 struct MeshComponent
 {
-    std::string fileName;
-    std::string materialName;
+    Mesh* mesh = nullptr;
 };
-
 
 struct MaterialComponent
 {
     Material material;
 };
 
-struct EmitterComponent
+struct LightComponent
 {
-    std::string emitterConfigFile;
+    Light light;
 };
+
+struct ParticleSystemComponent
+{
+    particleSystem* system = nullptr;
+};
+
+struct CameraComponent
+{
+    Camera camera;
+};
+
+struct ActiveCameraTag {};
 

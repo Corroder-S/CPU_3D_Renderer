@@ -67,8 +67,6 @@ add_executable(cpu_renderer_sdl
         src/Renderer/Emitter/MasterParticleVertexBuffer.cpp
         src/Renderer/Emitter/ParticleManager.h
         src/Renderer/Emitter/ParticleManager.cpp
-        src/Renderer/Emitter/ParticleManager.h
-        src/Renderer/Emitter/ParticleManager.cpp
         src/ECS/headers/Archetypes.h
         src/ECS/detail/component_registry.inl
         src/ECS/detail/entity_component.inl
@@ -82,18 +80,15 @@ add_executable(cpu_renderer_sdl
         src/ECS/headers/ComponentMetaRegistry.h
         src/Scene/Component.h
         src/ECS/headers/ISystem.h
-        src/Renderer/RendererSystem.cpp
-        src/Renderer/RendererSystem.h
         src/Renderer/Emitter/WorkerPool.h
         src/Renderer/TerrainGenerator.h
         src/Engine/CameraController.h
+        Editor/System/RendererSystem.h
+        Editor/System/RendererSystem.cpp
 )
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 
-if( NOT CMAKE_BUILD_TYPE  STREQUAL "Debug")
-    target_compile_options(cpu_renderer_sdl PRIVATE /O2)
-endif()
 target_compile_options(cpu_renderer_sdl PRIVATE
     $<$<CONFIG:Release>:/O2 /fp:fast /arch:AVX2>
     $<$<CONFIG:Debug>:/Od /arch:AVX2>

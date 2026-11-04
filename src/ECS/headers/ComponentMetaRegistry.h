@@ -20,7 +20,7 @@ class ComponentMetaRegistry
 public:
 
     template <typename T>
-    static void reg()
+    static void ensureReg()
     {
         uint32_t id = ECS::ComponentIDGenerator::get<T>();
         if (id >= componentMeta.size())

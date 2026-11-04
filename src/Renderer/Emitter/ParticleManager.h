@@ -11,7 +11,7 @@ class ParticleManager
     WorkerPool m_workers;
 public:
     void initialize(uint32_t maxParticles, uint32_t numPools);
-    void createSystem(const emitterConfig& config, const Maths::Vec3f& position);
+    particleSystem* createSystem(const emitterConfig& config, const Maths::Vec3f& position);
     void destroySystem(particleSystem* system);
     void update(float deltaTime);
      MasterParticleVertexBuffer& getMasterBuffer()  { return m_masterBuffer; }

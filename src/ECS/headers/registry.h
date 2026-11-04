@@ -30,6 +30,9 @@ namespace ECS
         template<typename T, typename... Args>
         T& addComponent(EntityID entityID, Args&&... args);
 
+        template<class ... Ts>
+        void addComponents(EntityID entityID, Ts &&... components);
+
 
         Archetypes *getOrCreateArchetype(const std::vector<uint32_t> &componentIDs);
 
@@ -58,6 +61,9 @@ namespace ECS
         std::vector<EntityID> m_entitiesToDestroy;
 
         void removeEntity(EntityID toRemove);
+
+        template<class T>
+        T &placeComponent(Archetypes *arch, T &&component);
     };
 }
 

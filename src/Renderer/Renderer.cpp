@@ -31,117 +31,9 @@ void Renderer::init(uint32_t width, uint32_t height)
     }
 }
 
-void Renderer::renderScene(const Scene& scene)
-{
-    auto tScene0 = Clock::now();
-
-    auto tClear0 = Clock::now();
-
-    m_screenTriangles.clear();
-    m_opaqueTriangles.clear();
-    m_transparentTriangles.clear();
-
-    for (auto & bin : m_tileBins)
-    {
-        bin.clear();
-    }
-
-    auto tMesh0 = Clock::now();
-    m_timeClearBinsMs = toMs(tClear0, tMesh0);
-
-    auto view = scene.camera.getViewMatrix();
-    auto proj = scene.camera.getProjMatrix((float)m_width / m_height);
-    auto viewProj = proj * view;
-
-    for (auto& obj : scene.objects)
-    {
-        if (!obj.mesh) continue;
-
-        auto model = obj.transform.getModelMatrix();
-        auto MVP = viewProj * model;
-
-        ShaderUniforms uniforms{ &obj.material, &scene.lights[0], scene.camera.position };
-
-        bool isTransparent = (obj.material.dissolve < 1.0f);
-        auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
-
-        drawMesh(*obj.mesh, MVP, model, uniforms, scene.lights[0], isTransparent, targetList);
-    }
-
-    auto t0 = Clock::now();
-    m_timeMeshMs = toMs(tMesh0, t0);
-
-    if (!m_opaqueTriangles.empty())
-    {
-        for (auto& tri : m_opaqueTriangles)
-        {
-            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
-            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
-            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
-            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
-
-            for (int i = 0; i < (int)m_tiles.size(); i++)
-            {
-                auto& tile = m_tiles[i];
-                if (maxX >= tile.x_min && minX < tile.x_max &&
-                    maxY >= tile.y_min && minY < tile.y_max)
-                {
-                    m_tileBins[i].push_back(tri);
-                }
-            }
-        }
-    }
-
-
-    if (!m_transparentTriangles.empty())
-    {
-        std::sort(m_transparentTriangles.begin(), m_transparentTriangles.end(),
-            [](const ScreenTriangle& t1, const ScreenTriangle& t2) {
-                return t1.avgZ > t2.avgZ;
-            });
-
-        for (auto& tri : m_transparentTriangles)
-        {
-            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
-            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
-            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
-            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
-
-            for (int i = 0; i < (int)m_tiles.size(); i++)
-            {
-                auto& tile = m_tiles[i];
-                if (maxX >= tile.x_min && minX < tile.x_max &&
-                    maxY >= tile.y_min && minY < tile.y_max)
-                {
-                    m_tileBins[i].push_back(tri);
-                }
-            }
-        }
-    }
-
-    auto t1 = Clock::now();
-    m_timeBinMs = toMs(t0, t1);
-
-    // Fork
-    m_tileCounter = 0;
-    for (int i = 0; i < m_numWorkers; i++) {
-        std::lock_guard<std::mutex> lock(m_workers[i]->mutex);
-        m_workers[i]->hasWork = true;
-        m_workers[i]->cv.notify_one();
-    }
-
-    for (int i = 0; i < m_numWorkers; i++) {
-        std::unique_lock<std::mutex> lock(m_workers[i]->mutex);
-        m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });
-    }
-
-    auto t2 = Clock::now();
-    m_timeRasterMs = toMs(t1, t2);
-    m_timeSceneMs  = toMs(tScene0, t2);
-}
 
 void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
-    const ShaderUniforms& uniforms, const Light& light,
+    const ShaderUniforms& uniforms,
     bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
 {
     size_t vertexCount = mesh.vertices.size();
@@ -198,7 +90,6 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
             tri.n0 = tv0.normal; tri.n1 = tv1.normal; tri.n2 = tv2.normal;
             tri.wp0 = tv0.worldPos; tri.wp1 = tv1.worldPos; tri.wp2 = tv2.worldPos;
             tri.uniforms = uniforms;
-            tri.light = &light;
 
             tri.avgZ = (a.z + b.z + c.z) / 3.0f;
             tri.writeDepth = !isTransparent;
@@ -207,6 +98,107 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
         }
     }
 }
+
+void Renderer::beginFrame(const Camera& cam, float aspectRatio)
+{
+    m_screenTriangles.clear();
+    m_opaqueTriangles.clear();
+    m_transparentTriangles.clear();
+    for (auto& bin : m_tileBins)
+        bin.clear();
+
+    auto view = cam.getViewMatrix();
+    auto proj = cam.getProjMatrix(aspectRatio);
+    m_viewProj = proj * view;
+    m_camPosition = cam.position;
+}
+
+
+void Renderer::submitMesh(const Mesh& mesh, const Transform& transform,
+                          const Material& material)
+{
+    auto model = transform.getModelMatrix();
+    auto MVP = m_viewProj * model;
+
+    ShaderUniforms uniforms{ &material, m_frameLights, m_frameLightCount, m_camPosition };
+
+    bool isTransparent = (material.dissolve < 1.0f);
+    auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
+
+    drawMesh(mesh, MVP, model, uniforms, isTransparent, targetList);
+}
+
+void Renderer::endFrame()
+{
+    if (!m_opaqueTriangles.empty())
+    {
+        for (auto& tri : m_opaqueTriangles)
+        {
+            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
+            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
+            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
+            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
+
+            for (int i = 0; i < (int)m_tiles.size(); i++)
+            {
+                auto& tile = m_tiles[i];
+                if (maxX >= tile.x_min && minX < tile.x_max &&
+                    maxY >= tile.y_min && minY < tile.y_max)
+                {
+                    m_tileBins[i].push_back(tri);
+                }
+            }
+        }
+    }
+
+
+    if (!m_transparentTriangles.empty())
+    {
+        std::sort(m_transparentTriangles.begin(), m_transparentTriangles.end(),
+            [](const ScreenTriangle& t1, const ScreenTriangle& t2) {
+                return t1.avgZ > t2.avgZ;
+            });
+
+        for (auto& tri : m_transparentTriangles)
+        {
+            int minX = (int)std::floor(std::min({ tri.a.x, tri.b.x, tri.c.x }));
+            int maxX = (int)std::ceil(std::max({ tri.a.x, tri.b.x, tri.c.x }));
+            int minY = (int)std::floor(std::min({ tri.a.y, tri.b.y, tri.c.y }));
+            int maxY = (int)std::ceil(std::max({ tri.a.y, tri.b.y, tri.c.y }));
+
+            for (int i = 0; i < (int)m_tiles.size(); i++)
+            {
+                auto& tile = m_tiles[i];
+                if (maxX >= tile.x_min && minX < tile.x_max &&
+                    maxY >= tile.y_min && minY < tile.y_max)
+                {
+                    m_tileBins[i].push_back(tri);
+                }
+            }
+        }
+    }
+
+    // Fork
+    m_tileCounter = 0;
+    for (int i = 0; i < m_numWorkers; i++) {
+        std::lock_guard<std::mutex> lock(m_workers[i]->mutex);
+        m_workers[i]->hasWork = true;
+        m_workers[i]->cv.notify_one();
+    }
+
+    for (int i = 0; i < m_numWorkers; i++) {
+        std::unique_lock<std::mutex> lock(m_workers[i]->mutex);
+        m_workers[i]->finished.wait(lock, [&] { return !m_workers[i]->hasWork; });
+    }
+
+}
+
+void Renderer::setLights(const Light* lights, uint32_t count)
+{
+    m_frameLights = lights;
+    m_frameLightCount = count;
+}
+
 
 void Renderer::drawText(const Font& font, const std::string& text, int x, int y, const Color& color)
 {
@@ -318,7 +310,6 @@ void Renderer::workerLoop(Worker& w)
                     tri.wp0, tri.wp1, tri.wp2,
                     m_framebuffer, m_zBuffer,
                     tri.uniforms,
-                    *tri.light,
                     {tile.x_min, tile.y_min},
                     {tile.x_max, tile.y_max}, m_width,
                     tri.writeDepth

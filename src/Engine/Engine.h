@@ -21,7 +21,6 @@ protected:
     virtual void start()  {}
     virtual void update() = 0;
 
-
     Renderer m_renderer;
 
     uint32_t m_clearColor      = 0xFF101018; // ARGB dark background
