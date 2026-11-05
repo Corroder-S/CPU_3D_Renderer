@@ -85,7 +85,7 @@ add_executable(cpu_renderer_sdl
         src/Engine/CameraController.h
         Editor/System/RendererSystem.h
         Editor/System/RendererSystem.cpp
-)
+ "src/Asset/Metal.h")
 
 target_link_libraries(cpu_renderer_sdl PRIVATE SDL3::SDL3 Maths nlohmann_json::nlohmann_json)
 

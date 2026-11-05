@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <memory>
+#include <algorithm>
 #include "Asset/Texture.h"
 
 namespace MtlLoader {
@@ -21,6 +22,8 @@ namespace MtlLoader {
         std::string currentMtl;
 
         while (std::getline(file, line)) {
+            if (line.empty() || line[0] == '#') continue;
+
             std::stringstream ss(line);
             std::string keyword;
             ss >> keyword;
@@ -61,6 +64,17 @@ namespace MtlLoader {
                 float tr;
                 ss >> tr;
                 materials[currentMtl].dissolve = 1.0f - tr;
+            }
+            else if (keyword == "Pm") {
+                float m;
+                ss >> m;
+                materials[currentMtl].metallic = std::clamp(m, 0.0f, 1.0f);
+            }
+            else if (keyword == "Pr") {
+                float r;
+                ss >> r;
+                r = std::clamp(r, 0.03f, 1.0f);
+                materials[currentMtl].shininess = std::min(2.0f / (r * r) - 2.0f, 2048.0f);
             }
             else if (keyword == "map_Kd") {
                 std::string texName;
