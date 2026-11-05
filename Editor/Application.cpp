@@ -13,7 +13,7 @@ void Application::start()
         SDL_Log("Erreur lors du chargement de la police !");
     }
 
-    m_mesh = LoadMesh(ASSETS_PATH "Models/ball-bearing.obj");
+    m_mesh = LoadMesh(ASSETS_PATH "Models/fantasy-diamond.obj");
 
     MaterialComponent diamondMatComp;
     diamondMatComp.materials.reserve(m_mesh.submeshes.size());
@@ -23,13 +23,13 @@ void Application::start()
 
     Transform transformOpaque;
     transformOpaque.position = { -1.0f, 0.0f, -10.0f };
-	transformOpaque.scale = { 1.0f, 1.0f, 1.0f };
+	transformOpaque.scale = { 15.0f, 15.0f, 15.0f };
     auto entityOpaque = m_registry.createEntity();
     m_registry.addComponents(entityOpaque, transformOpaque, MeshComponent{ &m_mesh }, diamondMatComp);
 
     Transform transformTransp;
     transformTransp.position = { 0.0f, 0.0f, -5.0f };
-    transformTransp.scale = { 1.0f, 1.0f, 1.0f };
+    transformTransp.scale = { 15.0f, 15.0f, 15.0f };
     m_carTranspEntity = m_registry.createEntity();
     m_registry.addComponents(m_carTranspEntity, transformTransp, MeshComponent{ &m_mesh }, diamondMatComp);
 
