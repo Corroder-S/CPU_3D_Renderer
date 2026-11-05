@@ -3,23 +3,31 @@
 #include "Maths/Vec2.h"
 #include "Maths/Vec3.h"
 #include "Maths/Vec4.h"
+#include "Asset/Color.h"
 
 struct ClipVertex {
     Maths::Vec4f clip;
     Maths::Vec2f uv;
     Maths::Vec3f normal;
     Maths::Vec3f worldPos;
+    Color color;
 
-    static ClipVertex lerp(const ClipVertex& a, const ClipVertex& b, float t){
-        return { a.clip + (b.clip - a.clip) * t, a.uv + (b.uv - a.uv) * t, a.normal + (b.normal - a.normal) * t, a.worldPos + (b.worldPos - a.worldPos) * t};
+    static ClipVertex lerp(const ClipVertex& a, const ClipVertex& b, float t) {
+        return {
+            a.clip + (b.clip - a.clip) * t,
+            a.uv + (b.uv - a.uv) * t,
+            a.normal + (b.normal - a.normal) * t,
+            a.worldPos + (b.worldPos - a.worldPos) * t,
+            a.color + (b.color - a.color) * t
+        };
     }
 
-    float nearDistance() const{
+    float nearDistance() const {
         return clip.z + clip.w;
     }
 };
 
-inline int clipTriangleNear(const ClipVertex& v0, const ClipVertex& v1, const ClipVertex& v2, ClipVertex out[6]){
+inline int clipTriangleNear(const ClipVertex& v0, const ClipVertex& v1, const ClipVertex& v2, ClipVertex out[6]) {
     const ClipVertex in[3] = { v0, v1, v2 };
     ClipVertex poly[4];
     int n = 0;

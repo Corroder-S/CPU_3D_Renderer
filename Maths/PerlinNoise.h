@@ -66,4 +66,31 @@ public:
 
         return total / maxValue;
     }
+
+    float ridgedFbm(float x, float y, int octaves, float persistence, float lacunarity) const {
+        float total = 0.0f;
+        float frequency = 1.0f;
+        float amplitude = 1.0f;
+        float weight = 1.0f;
+
+        for (int i = 0; i < octaves; ++i) {
+            float signal = noise(x * frequency, y * frequency);
+            signal = std::abs(signal);
+            signal = 1.0f - signal;
+            signal *= signal;
+            signal *= weight;
+            weight = std::clamp(signal * 2.0f, 0.0f, 1.0f);
+
+            total += signal * amplitude;
+            amplitude *= persistence;
+            frequency *= lacunarity;
+        }
+        return total;
+    }
+
+    float domainWarpFbm(float x, float y, int octaves, float persistence, float lacunarity, float warpStrength = 1.5f) const {
+        float qx = fbm(x, y, octaves, persistence, lacunarity);
+        float qz = fbm(x + 5.2f, y + 1.3f, octaves, persistence, lacunarity);
+        return fbm(x + warpStrength * qx, y + warpStrength * qz, octaves, persistence, lacunarity);
+    }
 };

@@ -38,6 +38,7 @@ struct ScreenTriangle {
     Maths::Vec3f invW;
     Maths::Vec3f n0, n1, n2;
     Maths::Vec3f wp0, wp1, wp2;
+    Color c0, c1, c2;
 
     ShaderUniforms uniforms;
     float avgZ = 0.0f;

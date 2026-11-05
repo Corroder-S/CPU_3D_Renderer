@@ -34,31 +34,41 @@ void Application::start()
     m_registry.addComponents(m_carTranspEntity, transformTransp, MeshComponent{ &m_mesh }, diamondMatComp);
 
     TerrainParams terrainParams;
-    terrainParams.width = 64;
-    terrainParams.depth = 64;
+    terrainParams.width = 128;
+    terrainParams.depth = 128;
     terrainParams.cellSize = 0.5f;
-    terrainParams.heightScale = 8.0f;
-    terrainParams.frequency = 0.1f;
-    terrainParams.octaves = 8;
-    terrainParams.seed = 65565;
+    terrainParams.heightScale = 12.0f;
+    terrainParams.frequency = 0.02f;
+    terrainParams.octaves = 10;
+    terrainParams.persistence = 0.5f;
+    terrainParams.lacunarity = 2.0f;
+    terrainParams.warpStrength = 1.4f;
+    terrainParams.seed = 2382425242;
+
+    terrainParams.type = TerrainType::MountainRidged;
 
     m_terrainMesh = TerrainGenerator::Generate(terrainParams);
 
     Material terrainMaterial;
-    terrainMaterial.diffuse = Color{ 0.2f, 0.6f, 0.25f, 1.0f };
     terrainMaterial.ambient = Color{ 1.0f, 1.0f, 1.0f, 1.0f };
-    terrainMaterial.specular = Color{ 0.2f, 0.2f, 0.2f, 1.0f };
-    terrainMaterial.shininess = 4.0f;
-    terrainMaterial.dissolve = 1.0f;
+    terrainMaterial.diffuse = Color{ 1.0f, 1.0f, 1.0f, 1.0f };
+    terrainMaterial.specular = Color{ 0.1f, 0.1f, 0.1f, 1.0f };
+    terrainMaterial.shininess = 2.0f;
 
     MaterialComponent terrainMatComp;
     terrainMatComp.materials.push_back(terrainMaterial);
 
-    /*auto terrainEntity = m_registry.createEntity();
+
+    auto terrainEntity = m_registry.createEntity();
     m_registry.addComponents(terrainEntity,
-        Transform{ .position = { 0.0f, -2.0f, 0.0f } },
+        Transform{
+            .position = { 0.0f, -4.0f, 0.0f },
+            .rotation = { 0.0f, 0.0f, 0.0f },
+            .scale = { 1.0f, 1.0f, 1.0f }
+        },
         MeshComponent{ &m_terrainMesh },
-        terrainMatComp);*/
+        terrainMatComp
+    );
 
     Light sun;
     sun.direction = Maths::Normalize(Maths::Vec3f{ 1.0f, -1.0f, -1.0f });
@@ -96,7 +106,7 @@ void Application::start()
     m_registry.addComponent<TextComponent>(uiText1, Text{ 30, 90, &m_font, Color::White, "Scene Info", 1 });
 
     auto uiText2 = m_registry.createEntity();
-    m_registry.addComponent<TextComponent>(uiText2, Text{ 30, 115, &m_font, Color{0.7f, 0.7f, 0.7f, 1.0f}, "Terrain: 64x64", 1 });
+    m_registry.addComponent<TextComponent>(uiText2, Text{ 30, 115, &m_font, Color{0.7f, 0.7f, 0.7f, 1.0f}, "Terrain: 128x128", 1 });
 
     auto uiText3 = m_registry.createEntity();
     m_registry.addComponent<TextComponent>(uiText3, Text{ 30, 140, &m_font, Color{0.7f, 0.7f, 0.7f, 1.0f}, "Meshes: Diamond + Terrain", 1 });

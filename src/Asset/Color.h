@@ -21,6 +21,15 @@ struct Color {
         return *this;
     }
 
+    Color operator-(const Color& other) const {
+        return { r - other.r, g - other.g, b - other.b, a - other.a };
+    }
+    
+    Color& operator-=(const Color& other) {
+        r -= other.r; g -= other.g; b -= other.b; a -= other.a;
+        return *this;
+	}
+
     Color operator*(float factor) const {
         return { r * factor, g * factor, b * factor, a };
     }
