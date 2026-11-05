@@ -58,13 +58,13 @@ public:
                 int bottomRight = bottomLeft + 1;
 
 
-                face f1;
+                Face f1;
                 f1.v = Maths::Vec3i{ topLeft, bottomLeft, topRight };
                 f1.uv = Maths::Vec3i{ topLeft, bottomLeft, topRight };
                 mesh.faces.push_back(f1);
 
 
-                face f2;
+                Face f2;
                 f2.v = Maths::Vec3i{ topRight, bottomLeft, bottomRight };
                 f2.uv = Maths::Vec3i{ topRight, bottomLeft, bottomRight };
                 mesh.faces.push_back(f2);

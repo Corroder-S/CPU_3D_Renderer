@@ -11,9 +11,9 @@ public:
     MappedFile(const MappedFile&)            = delete;
     MappedFile& operator=(const MappedFile&) = delete;
 
-    const char* Data() const { return m_data; }
-    size_t      Size() const { return m_size; }
-    bool        IsOpen() const { return m_data != nullptr; }
+    const char* data() const { return m_data; }
+    size_t      size() const { return m_size; }
+    bool        isOpen() const { return m_data != nullptr; }
 
 private:
     const char* m_data = nullptr;

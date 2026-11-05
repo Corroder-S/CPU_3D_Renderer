@@ -1,19 +1,19 @@
 ﻿#pragma once
-#include "particleEmitter.h"
+#include "ParticleEmitter.h"
 
-class particleSystem
+class ParticleSystem
 {
-    std::vector<particleEmitter*> particleEmitters;
+    std::vector<ParticleEmitter*> m_emitters;
     std::uint32_t m_poolID;
 public:
-    particleSystem() = default;
+    ParticleSystem() = default;
     void update(float deltaTime);
-    void addEmitter(emitterConfig config);
-    void removeEmitter(particleEmitter* emitter);
+    void addEmitter(EmitterConfig config);
+    void removeEmitter(ParticleEmitter* emitter);
     void setPoolID(std::uint32_t poolID) { m_poolID = poolID; }
     void reset();
     bool isComplete() const;
     bool isLooping() const;
-    const std::vector<particleEmitter*>& getEmitters() const { return particleEmitters; }
+    const std::vector<ParticleEmitter*>& getEmitters() const { return m_emitters; }
 
 };

@@ -6,7 +6,7 @@
 
 ParticleMemoryManager* ParticleMemoryManager::m_instance = nullptr;
 
-void ParticleMemoryManager::Initialize(uint32_t numParticles, uint32_t numEmitters, uint32_t numSystems,
+void ParticleMemoryManager::initialize(uint32_t numParticles, uint32_t numEmitters, uint32_t numSystems,
     uint32_t numPools)
 {
     for (uint32_t i = 0; i < numPools; i++)
@@ -15,7 +15,7 @@ void ParticleMemoryManager::Initialize(uint32_t numParticles, uint32_t numEmitte
     }
 }
 
-ParticleMemoryManager& ParticleMemoryManager::GetInstance() {
+ParticleMemoryManager& ParticleMemoryManager::getInstance() {
     static ParticleMemoryManager instance;
     return instance;
 }
@@ -39,10 +39,10 @@ ParticleMemoryPool* ParticleMemoryManager::getMemoryPool(uint32_t index)
 uint32_t ParticleMemoryManager::getBestPoolIdForNewParticles() const
 {
     uint32_t bestId = 0;
-    uint32_t lowestParticles = m_memoryPools[0]->GetNumActiveParticles();
+    uint32_t lowestParticles = m_memoryPools[0]->getNumActiveParticles();
     for (uint32_t i = 0; i < m_memoryPools.size(); i++)
     {
-        uint32_t numParticles = m_memoryPools[i]->GetNumActiveParticles();
+        uint32_t numParticles = m_memoryPools[i]->getNumActiveParticles();
         if (numParticles < lowestParticles)
         {
             bestId = i;
@@ -57,7 +57,7 @@ uint32_t ParticleMemoryManager::getNumActiveParticles() const
     uint32_t totalActiveParticles = 0;
     for (auto& pool : m_memoryPools)
     {
-        totalActiveParticles += pool->GetNumActiveParticles();
+        totalActiveParticles += pool->getNumActiveParticles();
     }
     return totalActiveParticles;
 }

@@ -8,9 +8,9 @@
 #include "Asset/Material.h"
 
 
-bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces);
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces);
 
-bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces, Material& outMaterial);
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces, Material& outMaterial);
 
 
 

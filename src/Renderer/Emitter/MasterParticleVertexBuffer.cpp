@@ -4,38 +4,38 @@
 
 #include "MasterParticleVertexBuffer.h"
 
-void MasterParticleVertexBuffer::Initialize(size_t maxParticles, size_t numPools)
+void MasterParticleVertexBuffer::initialize(size_t maxParticles, size_t numPools)
 {
     uint32_t VertsPerPool = static_cast<uint32_t>(maxParticles / numPools);
 
 
-    m_ParticleVerts.resize(numPools);
-    for (auto& pool : m_ParticleVerts)
+    m_particleVerts.resize(numPools);
+    for (auto& pool : m_particleVerts)
     {
         pool.resize(VertsPerPool);
-        m_CurrentVerts.push_back(0);
+        m_currentVerts.push_back(0);
     }
 }
 
 void MasterParticleVertexBuffer::clearParticleVertices()
 {
-    for (auto& vert : m_CurrentVerts)
+    for (auto& vert : m_currentVerts)
     {
         vert = 0;
     }
 }
 
-void MasterParticleVertexBuffer::AddParticleVertex(ParticleVertex *vertex, uint32_t poolIndex)
+void MasterParticleVertexBuffer::addParticleVertex(ParticleVertex *vertex, uint32_t poolIndex)
 {
-    uint32_t index = m_CurrentVerts[poolIndex];
-    m_ParticleVerts[poolIndex][index] = *vertex;
-    m_CurrentVerts[poolIndex]++;
+    uint32_t index = m_currentVerts[poolIndex];
+    m_particleVerts[poolIndex][index] = *vertex;
+    m_currentVerts[poolIndex]++;
 }
 
 uint32_t MasterParticleVertexBuffer::getTotalVertCount() const
 {
     uint32_t total = 0;
-    for (auto count : m_CurrentVerts)
+    for (auto count : m_currentVerts)
         total += count;
     return total;
 }
@@ -43,10 +43,10 @@ uint32_t MasterParticleVertexBuffer::getTotalVertCount() const
 void MasterParticleVertexBuffer::mergeAllPools()
 {
     m_vertexBuffer.clear();
-    for (size_t i = 0; i < m_ParticleVerts.size(); i++)
+    for (size_t i = 0; i < m_particleVerts.size(); i++)
     {
-        auto& verts = m_ParticleVerts[i];
-        uint32_t count = m_CurrentVerts[i];
+        auto& verts = m_particleVerts[i];
+        uint32_t count = m_currentVerts[i];
         m_vertexBuffer.insert(m_vertexBuffer.end(), verts.begin(), verts.begin() + count);
     }
 }

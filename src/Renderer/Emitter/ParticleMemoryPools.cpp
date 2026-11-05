@@ -11,8 +11,8 @@ ParticleMemoryPool::ParticleMemoryPool(uint32_t numParticles, uint32_t numEmitte
     m_currentSystemIndex = 0;
 
     m_particles = new Particle[m_maxParticles];
-    m_particleEmitters = new particleEmitter[m_maxParticleEmitters];
-    m_particleSystems = new particleSystem[m_maxParticleSystems];
+    m_particleEmitters = new ParticleEmitter[m_maxParticleEmitters];
+    m_particleSystems = new ParticleSystem[m_maxParticleSystems];
 
     m_freeParticles.reserve(m_maxParticles);
     m_freeEmitters.reserve(m_maxParticleEmitters);
@@ -26,7 +26,7 @@ ParticleMemoryPool::~ParticleMemoryPool()
     delete[] m_particleSystems;
 }
 
-Particle *ParticleMemoryPool::GetNewParticle()
+Particle *ParticleMemoryPool::getNewParticle()
 {
     Particle *newParticle = nullptr;
 
@@ -43,9 +43,9 @@ Particle *ParticleMemoryPool::GetNewParticle()
     return newParticle;
 }
 
-particleEmitter * ParticleMemoryPool::GetNewEmitter()
+ParticleEmitter * ParticleMemoryPool::getNewEmitter()
 {
-    particleEmitter *newEmitter = nullptr;
+    ParticleEmitter *newEmitter = nullptr;
 
     if (m_currentEmitterIndex < m_maxParticleEmitters)
     {
@@ -60,9 +60,9 @@ particleEmitter * ParticleMemoryPool::GetNewEmitter()
     return newEmitter;
 }
 
-particleSystem * ParticleMemoryPool::GetNewSystem()
+ParticleSystem * ParticleMemoryPool::getNewSystem()
 {
-    particleSystem *newSystem = nullptr;
+    ParticleSystem *newSystem = nullptr;
 
     if (m_currentSystemIndex < m_maxParticleSystems)
     {
@@ -80,14 +80,14 @@ particleSystem * ParticleMemoryPool::GetNewSystem()
 
 
 
-void ParticleMemoryPool::FreeParticle(Particle *particle)
+void ParticleMemoryPool::freeParticle(Particle *particle)
 {
     assert(particle != nullptr);
     particle->reset();
     m_freeParticles.push_back(particle);
 }
 
-void ParticleMemoryPool::FreeEmitter(particleEmitter *emitter)
+void ParticleMemoryPool::freeEmitter(ParticleEmitter *emitter)
 {
     assert(emitter != nullptr);
     emitter->reset();
@@ -95,14 +95,14 @@ void ParticleMemoryPool::FreeEmitter(particleEmitter *emitter)
 }
 
 
-void ParticleMemoryPool::FreeSystem(particleSystem *system)
+void ParticleMemoryPool::freeSystem(ParticleSystem *system)
 {
     assert(system != nullptr);
     system->reset();
     m_freeSystems.push_back(system);
 }
 
-uint32_t ParticleMemoryPool::GetNumActiveParticles() const
+uint32_t ParticleMemoryPool::getNumActiveParticles() const
 {
     return m_currentParticleIndex - m_freeParticles.size();
 }

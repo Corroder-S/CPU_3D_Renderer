@@ -7,12 +7,12 @@
 
 
 
-bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face> &outFaces)
+bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face> &outFaces)
 {
     MappedFile file(path);
-    if (!file.IsOpen()) return false;
-    const char* data = file.Data();
-    const char* end  = data + file.Size();
+    if (!file.isOpen()) return false;
+    const char* data = file.data();
+    const char* end  = data + file.size();
 
     while (data < end)
     {
@@ -51,7 +51,7 @@ bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vect
             if (*p == '/') p++;
             int t3 = std::strtol(p, (char**)&p, 10) - 1;
 
-            outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
+            outFaces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
         }
         while (data < end && *data != '\n') data++;
         data++;
@@ -62,12 +62,12 @@ bool LoadObj(const char *path, std::vector<Maths::Vec3f> &outVertices, std::vect
 }
 
 
-bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces, Material& material)
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces, Material& material)
 {
     MappedFile file(path);
-    if (!file.IsOpen()) return false;
-    const char* data = file.Data();
-    const char* end = data + file.Size();
+    if (!file.isOpen()) return false;
+    const char* data = file.data();
+    const char* end = data + file.size();
 
     while (data < end)
     {
@@ -106,7 +106,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
             if (*p == '/') p++;
             int t3 = std::strtol(p, (char**)&p, 10) - 1;
 
-            outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
+            outFaces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(t1, t2, t3)));
         }
         else if (std::strncmp(data, "mtllib ", 7) == 0)
         {

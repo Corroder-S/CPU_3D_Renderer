@@ -1,4 +1,4 @@
-#include "particleEmitter.h"
+#include "ParticleEmitter.h"
 
 #include <random>
 
@@ -7,21 +7,21 @@
 
 static std::mt19937 rng(std::random_device{}());
 
-particleEmitter::particleEmitter(const emitterConfig &config)
+ParticleEmitter::ParticleEmitter(const EmitterConfig &config)
 {
     m_config = config;
 }
 
-void particleEmitter::destroyParticle()
+void ParticleEmitter::destroyParticle()
 {
     m_activeParticles.clear();
 }
 
-void particleEmitter::emit()
+void ParticleEmitter::emit()
 {
-    Particle* p = ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId)->GetNewParticle();
+    Particle* p = ParticleMemoryManager::getInstance().getMemoryPool(m_poolId)->getNewParticle();
     if (p == nullptr) return;
-    p->position  = Position;
+    p->position  = m_position;
 
     constexpr float DEG2RAD = 3.14159265f / 180.0f;
 
@@ -43,7 +43,7 @@ void particleEmitter::emit()
     m_activeParticles.push_back(p);
 }
 
-void particleEmitter::update(float deltaTime)
+void ParticleEmitter::update(float deltaTime)
 {
     m_emitAccumulator += deltaTime;
     float interval = 1.0f / m_config.emitRate;
@@ -65,14 +65,14 @@ void particleEmitter::update(float deltaTime)
     }
 }
 
-void particleEmitter::freeDeadParticles()
+void ParticleEmitter::freeDeadParticles()
 {
     for (auto it = m_activeParticles.begin(); it != m_activeParticles.end();)
     {
         Particle* particle = *it;
         if (particle->life <= 0.0f)
         {
-            ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId)->FreeParticle(particle);
+            ParticleMemoryManager::getInstance().getMemoryPool(m_poolId)->freeParticle(particle);
             it = m_activeParticles.erase(it);
         }
         else
@@ -82,18 +82,18 @@ void particleEmitter::freeDeadParticles()
     }
 }
 
-void particleEmitter::reset()
+void ParticleEmitter::reset()
 {
 
     if (m_poolId != 0)
     {
-        auto pool = ParticleMemoryManager::GetInstance().getMemoryPool(m_poolId);
+        auto pool = ParticleMemoryManager::getInstance().getMemoryPool(m_poolId);
         for (auto* particle : m_activeParticles)
-            pool->FreeParticle(particle);
+            pool->freeParticle(particle);
     }
     m_activeParticles.clear();
     m_freeParticles.clear();
     m_poolId = 0;
-    Position = Maths::Vec3f(0.0f, 0.0f, 0.0f);
-    m_config = emitterConfig();
+    m_position = Maths::Vec3f(0.0f, 0.0f, 0.0f);
+    m_config = EmitterConfig();
 }

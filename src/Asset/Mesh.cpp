@@ -1,7 +1,5 @@
 ﻿#include "Mesh.h"
 
-#include <map>
-
 #include "Parsing/ObjLoader.h"
 
 Mesh LoadMesh(const char* path, Material& material)
@@ -10,7 +8,6 @@ Mesh LoadMesh(const char* path, Material& material)
 
     std::string p = path;
     std::string ext = p.substr(p.rfind('.'));
-    // ext = ".obj"
     if (ext == ".obj")
     {
         LoadObj(path, mesh.vertices, mesh.uvs, mesh.faces, material);

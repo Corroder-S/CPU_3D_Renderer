@@ -26,9 +26,6 @@ struct Canva {
     uint32_t x, y, w, h;
     uint32_t color;
     uint32_t zOrder;
-    std::vector<Canva*> children;
-    std::vector<Image*> images;
-    std::vector<Text*>  texts;
 };
 
 class UI_Canva

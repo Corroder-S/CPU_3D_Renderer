@@ -7,19 +7,19 @@
 #include "EmitterConfig.h"
 
 
-class particleEmitter
+class ParticleEmitter
 {
 public:
 
-    particleEmitter() = default;
-    particleEmitter(const emitterConfig& config);
+    ParticleEmitter() = default;
+    ParticleEmitter(const EmitterConfig& config);
 
     void destroyParticle();
     void emit();
     void update(float deltaTime);
     void freeDeadParticles();
     void setPoolId(uint32_t poolId) { m_poolId = poolId; }
-    void setConfig(const emitterConfig& config) { m_config = config; }
+    void setConfig(const EmitterConfig& config) { m_config = config; }
     void reset();
     bool isDone() const { return m_activeParticles.empty(); }
     bool isLoop() const { return m_config.looping; }
@@ -29,8 +29,8 @@ private:
     std::vector<Particle*> m_activeParticles;
     std::vector<Particle*> m_freeParticles;
     uint32_t m_poolId = 0;
-    Maths::Vec3f Position;
-    emitterConfig m_config;
+    Maths::Vec3f m_position;
+    EmitterConfig m_config;
     float m_emitAccumulator = 0.0f;
 
 

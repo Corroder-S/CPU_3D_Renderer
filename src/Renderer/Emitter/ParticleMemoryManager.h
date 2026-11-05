@@ -9,8 +9,8 @@ class ParticleMemoryManager
     std::vector<ParticleMemoryPool*> m_memoryPools;
 
 public:
-    void Initialize(uint32_t numParticles, uint32_t numEmitters, uint32_t numSystems, uint32_t numPools);
-    static ParticleMemoryManager& GetInstance();
+    void initialize(uint32_t numParticles, uint32_t numEmitters, uint32_t numSystems, uint32_t numPools);
+    static ParticleMemoryManager& getInstance();
     ~ParticleMemoryManager();
     ParticleMemoryPool* getMemoryPool(uint32_t index);
     uint32_t getBestPoolIdForNewParticles() const;

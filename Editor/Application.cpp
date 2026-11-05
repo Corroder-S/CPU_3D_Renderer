@@ -77,7 +77,7 @@ void Application::start()
     m_particleManager.initialize(10000, 4);
 
 
-    emitterConfig config = loadFromJson(ASSETS_PATH "Particles/fire.json");
+    EmitterConfig config = loadFromJson(ASSETS_PATH "Particles/fire.json");
 
     auto* sys = m_particleManager.createSystem(config, { 0, 0, 0 });
     entity = m_registry.createEntity();

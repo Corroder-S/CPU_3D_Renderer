@@ -7,22 +7,22 @@
 void ParticleManager::initialize(uint32_t maxParticles, uint32_t numPools)
 {
     m_numPools = numPools;
-    ParticleMemoryManager::GetInstance().Initialize(
+    ParticleMemoryManager::getInstance().initialize(
         maxParticles,
         maxParticles / 10,
         maxParticles / 100,
         numPools
     );
-    m_masterBuffer.Initialize(maxParticles, numPools);
+    m_masterBuffer.initialize(maxParticles, numPools);
     m_systemsPerPool.resize(numPools);
 }
 
-particleSystem* ParticleManager::createSystem(const emitterConfig& config, const Maths::Vec3f& position)
+ParticleSystem* ParticleManager::createSystem(const EmitterConfig& config, const Maths::Vec3f& position)
 {
-    auto& memoryManager = ParticleMemoryManager::GetInstance();
+    auto& memoryManager = ParticleMemoryManager::getInstance();
     const uint32_t poolID = memoryManager.getBestPoolIdForNewParticles();
     auto pool = memoryManager.getMemoryPool(poolID);
-    particleSystem* system = pool->GetNewSystem();
+    ParticleSystem* system = pool->getNewSystem();
 
     if (!system)
     {
@@ -36,7 +36,7 @@ particleSystem* ParticleManager::createSystem(const emitterConfig& config, const
     return system;
 }
 
-void ParticleManager::destroySystem(particleSystem* system)
+void ParticleManager::destroySystem(ParticleSystem* system)
 {
     for (auto& list : m_systemsPerPool)
         list.erase(std::remove(list.begin(), list.end(), system), list.end());
@@ -49,7 +49,7 @@ void ParticleManager::update(float deltaTime)
     m_workers.parallelFor(m_numPools, [&](uint32_t i)
         {
             ParticleUpdateJob job;
-            job.ParticleSystems = &m_systemsPerPool[i];
+            job.particleSystems = &m_systemsPerPool[i];
             job.masterBuffer = &m_masterBuffer;
             job.poolIndex = i;
             job.deltaTime = deltaTime;

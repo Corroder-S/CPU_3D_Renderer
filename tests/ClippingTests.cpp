@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "Renderer/clip.h"
+#include "Renderer/Clip.h"
 
 TEST(ClippingTests, FullyInsideProducesOneTriangle)
 {

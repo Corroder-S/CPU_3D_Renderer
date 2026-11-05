@@ -6,7 +6,7 @@
 #include "Maths/Vec3.h"
 #include "Material.h"
 
-struct face {
+struct Face {
     Maths::Vec3i v;
     Maths::Vec3i uv;
 };
@@ -14,7 +14,7 @@ struct face {
 struct Mesh {
     std::vector<Maths::Vec3f> vertices;
     std::vector<Maths::Vec2f> uvs;
-    std::vector<face>         faces;
+    std::vector<Face>         faces;
     std::vector<Maths::Vec3f> faceNormals;
     std::vector<Maths::Vec3f> vertexNormals;
 };

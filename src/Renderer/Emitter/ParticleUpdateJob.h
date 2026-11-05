@@ -8,7 +8,7 @@ class ParticleUpdateJob
 {
 public:
 
-    std::vector<particleSystem*>* ParticleSystems;
+    std::vector<ParticleSystem*>* particleSystems;
     MasterParticleVertexBuffer* masterBuffer;
     uint32_t poolIndex;
 

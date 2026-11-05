@@ -5,18 +5,18 @@
 
 #include "Platform/MemoryMappedFile.h"
 
-emitterConfig loadFromJson(const std::string& filename)
+EmitterConfig loadFromJson(const std::string& filename)
 {
-    emitterConfig config;
+    EmitterConfig config;
 
     MappedFile file(filename.c_str());
-    if (!file.IsOpen())
+    if (!file.isOpen())
     {
         std::cerr << "Failed to open config file: " << filename << std::endl;
         return config;
     }
 
-    nlohmann::json jsonConfig = nlohmann::json::parse(file.Data(), file.Data() + file.Size());
+    nlohmann::json jsonConfig = nlohmann::json::parse(file.data(), file.data() + file.size());
 
     config.type = jsonConfig.value("type", "default");
     config.emitRate = jsonConfig.value("emitRate", 10);

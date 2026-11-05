@@ -8,16 +8,16 @@
 void ParticleUpdateJob::execute()
 {
 
-    for (int i = 0; i < static_cast<int>(ParticleSystems->size()); i++)
+    for (int i = 0; i < static_cast<int>(particleSystems->size()); i++)
     {
-        particleSystem* system = (*ParticleSystems)[i];
+        ParticleSystem* system = (*particleSystems)[i];
         system->update(deltaTime);
 
         if (!system->isLooping() && system->isComplete())
         {
-            auto* pool = ParticleMemoryManager::GetInstance().getMemoryPool(poolIndex);
-            pool->FreeSystem(system);
-            ParticleSystems->erase(ParticleSystems->begin() + i);
+            auto* pool = ParticleMemoryManager::getInstance().getMemoryPool(poolIndex);
+            pool->freeSystem(system);
+            particleSystems->erase(particleSystems->begin() + i);
             i--;
             continue;
         }
@@ -35,7 +35,7 @@ void ParticleUpdateJob::execute()
                 vert.position = particle->position;
                 vert.color    = particle->color;
                 vert.size     = particle->size;
-                masterBuffer->AddParticleVertex(&vert, poolIndex);
+                masterBuffer->addParticleVertex(&vert, poolIndex);
             }
         }
     }

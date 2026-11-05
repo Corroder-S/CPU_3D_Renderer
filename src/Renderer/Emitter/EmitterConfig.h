@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-struct emitterConfig
+struct EmitterConfig
 {
     std::string type;
     float emitRate;
@@ -23,4 +23,4 @@ struct emitterConfig
 };
 
 
-emitterConfig loadFromJson(const std::string& filename);
+EmitterConfig loadFromJson(const std::string& filename);

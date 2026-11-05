@@ -2,34 +2,34 @@
 
 #include "ParticleMemoryManager.h"
 
-void particleSystem::update(float deltaTime)
+void ParticleSystem::update(float deltaTime)
 {
-    for (auto& emitter : particleEmitters)
+    for (auto& emitter : m_emitters)
     {
         emitter->update(deltaTime);
         emitter->freeDeadParticles();
     }
 }
 
-void particleSystem::addEmitter(emitterConfig config)
+void ParticleSystem::addEmitter(EmitterConfig config)
 {
-    particleEmitters.emplace_back(ParticleMemoryManager::GetInstance().getMemoryPool(m_poolID)->GetNewEmitter());
-    particleEmitters.back()->setPoolId(m_poolID);
-    particleEmitters.back()->setConfig(config);
+    m_emitters.emplace_back(ParticleMemoryManager::getInstance().getMemoryPool(m_poolID)->getNewEmitter());
+    m_emitters.back()->setPoolId(m_poolID);
+    m_emitters.back()->setConfig(config);
 }
 
-void particleSystem::removeEmitter(particleEmitter* emitter)
+void ParticleSystem::removeEmitter(ParticleEmitter* emitter)
 {
-    std::erase_if(particleEmitters,
-        [emitter](const particleEmitter* e)
+    std::erase_if(m_emitters,
+        [emitter](const ParticleEmitter* e)
         {
             return e == emitter;
         });
 }
 
-bool particleSystem::isComplete() const
+bool ParticleSystem::isComplete() const
 {
-    for (auto& emitter : particleEmitters)
+    for (auto& emitter : m_emitters)
     {
         if (!emitter->isDone())
             return false;
@@ -37,23 +37,23 @@ bool particleSystem::isComplete() const
     return true;
 }
 
-bool particleSystem::isLooping() const
+bool ParticleSystem::isLooping() const
 {
-    for (auto& emitter : particleEmitters)
+    for (auto& emitter : m_emitters)
     {
         return emitter->isLoop();
     }
     return false;
 }
 
-void particleSystem::reset()
+void ParticleSystem::reset()
 {
-    auto pool = ParticleMemoryManager::GetInstance().getMemoryPool(m_poolID);
-    for (auto& emitter : particleEmitters)
+    auto pool = ParticleMemoryManager::getInstance().getMemoryPool(m_poolID);
+    for (auto& emitter : m_emitters)
     {
-        pool->FreeEmitter(emitter);
+        pool->freeEmitter(emitter);
     }
-    particleEmitters.clear();
+    m_emitters.clear();
     m_poolID = 0;
 }
 

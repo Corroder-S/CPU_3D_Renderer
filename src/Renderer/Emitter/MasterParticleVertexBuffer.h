@@ -12,17 +12,17 @@ struct ParticleVertex
 
 class MasterParticleVertexBuffer
 {
-    std::vector<std::vector<ParticleVertex>> m_ParticleVerts;
-    std::vector<uint32_t> m_CurrentVerts;
+    std::vector<std::vector<ParticleVertex>> m_particleVerts;
+    std::vector<uint32_t> m_currentVerts;
     std::vector<uint32_t> m_vertOffsetsForPools;
 
     std::vector<ParticleVertex> m_vertexBuffer;
     std::vector<uint32_t> m_indexBuffer;
 
 public:
-    void Initialize(size_t maxParticles, size_t numPools);
+    void initialize(size_t maxParticles, size_t numPools);
     void clearParticleVertices();
-    void AddParticleVertex(ParticleVertex* vertex, uint32_t poolIndex);
+    void addParticleVertex(ParticleVertex* vertex, uint32_t poolIndex);
     void mergeAllPools();
 
     const std::vector<ParticleVertex>& getVertexBuffer() const { return m_vertexBuffer; }

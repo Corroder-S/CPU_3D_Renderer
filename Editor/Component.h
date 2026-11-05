@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "../src/Scene/Camera.h"
+#include "Scene/Camera.h"
 #include "Asset/Light.h"
 #include "Asset/Material.h"
 #include "Asset/Mesh.h"
@@ -27,7 +27,7 @@ struct LightComponent
 
 struct ParticleSystemComponent
 {
-    particleSystem* system = nullptr;
+    ParticleSystem* system = nullptr;
 };
 
 struct CameraComponent

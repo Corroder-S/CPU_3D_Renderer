@@ -4,7 +4,7 @@
 
 
 #include "Particle.h"
-#include "particleEmitter.h"
+#include "ParticleEmitter.h"
 #include "ParticleSystem.h"
 
 
@@ -18,13 +18,13 @@ class ParticleMemoryPool
     uint32_t m_currentEmitterIndex;
     uint32_t m_currentSystemIndex;
 
-    particleSystem* m_particleSystems;
-    particleEmitter* m_particleEmitters;
+    ParticleSystem* m_particleSystems;
+    ParticleEmitter* m_particleEmitters;
     Particle* m_particles;
 
     std::vector<Particle*> m_freeParticles;
-    std::vector<particleEmitter*> m_freeEmitters;
-    std::vector<particleSystem*> m_freeSystems;
+    std::vector<ParticleEmitter*> m_freeEmitters;
+    std::vector<ParticleSystem*> m_freeSystems;
 
 public:
     ParticleMemoryPool() = default;
@@ -32,16 +32,16 @@ public:
     ~ParticleMemoryPool();
 
 
-    Particle* GetNewParticle();
-    particleEmitter* GetNewEmitter();
-    particleSystem* GetNewSystem();
+    Particle* getNewParticle();
+    ParticleEmitter* getNewEmitter();
+    ParticleSystem* getNewSystem();
 
 
-    void FreeParticle(Particle *particle);
-    void FreeEmitter(particleEmitter* emitter);
-    void FreeSystem(particleSystem* system);
+    void freeParticle(Particle *particle);
+    void freeEmitter(ParticleEmitter* emitter);
+    void freeSystem(ParticleSystem* system);
 
-    uint32_t GetNumActiveParticles() const;
+    uint32_t getNumActiveParticles() const;
 };
 
 
