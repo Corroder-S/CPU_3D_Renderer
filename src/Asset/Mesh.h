@@ -8,24 +8,33 @@
 #include "Maths/Vec3.h"
 #include "Material.h"
 
+// ============================================================================
+// MESH DATA STRUCTURES
+// ============================================================================
+
+/// @brief Face triangulaire contenant les indices de sommets et de coordonnées UV.
 struct Face {
-    Maths::Vec3i v;
-    Maths::Vec3i uv;
+    Maths::Vec3i v;   // Indices des sommets (x, y, z)
+    Maths::Vec3i uv;  // Indices des coordonnées UV (x, y, z)
 };
 
+/// @brief Sous-maillage associé à un matériau spécifique.
 struct SubMesh {
     std::string materialName;
     Material material;
     std::vector<Face> faces;
-    std::vector<Maths::Vec3f> cornerNormals;
+    std::vector<Maths::Vec3f> cornerNormals; // Normales de sommets par coin de triangle (smooth shading)
 };
 
+/// @brief Conteneur complet d'un objet 3D géométrique (sommets, UVs, biomes, sous-maillages).
 struct Mesh {
     std::vector<Maths::Vec3f> vertices;
     std::vector<Maths::Vec2f> uvs;
     std::vector<Color>        colors;
     std::vector<SubMesh>      submeshes;
 
+    /// @brief Calcule les normales de sommets avec lissage réglable par seuil d'angle.
+    /// @param angleDeg Angle limite en degrés au-delà duquel les arêtes restent dures (hard edges).
     void computeNormals(float angleDeg = 50.0f)
     {
         size_t totalFaces = 0;
@@ -46,6 +55,7 @@ struct Mesh {
         std::vector<FlatFaceRef> flatFaces;
         flatFaces.reserve(totalFaces);
 
+        // 1. Calcul des normales de chaque face géométrique
         for (size_t smIdx = 0; smIdx < submeshes.size(); ++smIdx) {
             for (size_t fIdx = 0; fIdx < submeshes[smIdx].faces.size(); ++fIdx) {
                 const auto& f = submeshes[smIdx].faces[fIdx];
@@ -67,10 +77,12 @@ struct Mesh {
             }
         }
 
+        // 2. Allocation des réceptacles de normales de coin
         for (auto& sm : submeshes) {
             sm.cornerNormals.resize(sm.faces.size() * 3);
         }
 
+        // 3. Accumulation et lissage des normales partagées selon le seuil d'angle
         for (size_t flatIdx = 0; flatIdx < flatFaces.size(); ++flatIdx) {
             const auto& ref = flatFaces[flatIdx];
             const auto& f = submeshes[ref.submeshIdx].faces[ref.faceIdx];
@@ -92,5 +104,12 @@ struct Mesh {
     }
 };
 
+// ============================================================================
+// MESH LOADING HELPER FUNCTIONS
+// ============================================================================
+
+/// @brief Charge un fichier mesh complet depuis le disque.
 Mesh LoadMesh(const char* path);
+
+/// @brief Charge un fichier mesh et extrait les propriétés du premier matériau.
 Mesh LoadMesh(const char* path, Material& material);

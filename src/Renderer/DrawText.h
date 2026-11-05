@@ -6,6 +6,19 @@
 #include "Asset/Font.h"
 #include "Asset/Color.h"
 
+// ============================================================================
+// TEXT RENDERING UTILITIES
+// ============================================================================
+
+/// @brief Dessine une chaîne de caractères 2D sur le buffer d'affichage (Framebuffer).
+/// @param font La police TTF chargée avec son atlas bitmap.
+/// @param text Le texte à afficher (supporte les sauts de ligne '\n').
+/// @param posX Coordonnée X de départ en pixels (coin supérieur gauche).
+/// @param posY Coordonnée Y de départ en pixels (haut de la première ligne).
+/// @param color Couleur RGBA appliquée au texte.
+/// @param framebuffer Pointeur vers le tampon de pixels 32-bit (format 0xAARRGGBB).
+/// @param fbWidth Largeur de la fenêtre d'affichage en pixels.
+/// @param fbHeight Hauteur de la fenêtre d'affichage en pixels.
 static inline void drawText(
     const Font& font,
     const std::string& text,
@@ -14,19 +27,22 @@ static inline void drawText(
     uint32_t* framebuffer,
     uint32_t fbWidth, uint32_t fbHeight)
 {
+    // 1. Validation de la police et conversion de la couleur en octets [0, 255]
     const auto& alphaAtlas = font.getAtlasAlpha();
     uint32_t atlasW = font.getAtlasWidth();
     uint32_t atlasH = font.getAtlasHeight();
-    if (alphaAtlas.empty()) return;
+    if (alphaAtlas.empty() || !framebuffer) return;
 
     uint8_t cr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
     uint8_t cg = static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f));
     uint8_t cb = static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f));
     uint8_t ca = static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f));
 
+    // 2. Initialisation du curseur de rendu du texte
     float curX = static_cast<float>(posX);
     float curY = static_cast<float>(posY + font.getFontSize());
 
+    // 3. Parcours et rendu caractère par caractère
     for (char c : text) {
         if (c == '\n') {
             curX = static_cast<float>(posX);
@@ -40,6 +56,7 @@ static inline void drawText(
         uint32_t w = q.x1 - q.x0;
         uint32_t h = q.y1 - q.y0;
 
+        // 4. Échantillonnage de l'atlas et Alpha Blending sur le Framebuffer
         for (uint32_t dy = 0; dy < h; ++dy) {
             uint32_t screenY = q.y0 + dy;
             if (screenY >= fbHeight) continue;
@@ -57,14 +74,16 @@ static inline void drawText(
                 uint8_t alpha = alphaAtlas[texY * atlasW + texX];
                 if (alpha == 0) continue;
 
+                // Calcul du facteur de transparence combiné (Atlas Alpha * Couleur Alpha)
                 float finalAlpha = (alpha / 255.0f) * (ca / 255.0f);
                 uint32_t dstIdx = screenY * fbWidth + screenX;
                 uint32_t dstColor = framebuffer[dstIdx];
 
                 uint8_t dr = (dstColor >> 16) & 0xFF;
-                uint8_t dg = (dstColor >> 8)  & 0xFF;
-                uint8_t db =  dstColor        & 0xFF;
+                uint8_t dg = (dstColor >> 8) & 0xFF;
+                uint8_t db = dstColor & 0xFF;
 
+                // Interpolation linéaire entre la couleur source et la couleur de destination
                 uint8_t outR = static_cast<uint8_t>(cr * finalAlpha + dr * (1.0f - finalAlpha));
                 uint8_t outG = static_cast<uint8_t>(cg * finalAlpha + dg * (1.0f - finalAlpha));
                 uint8_t outB = static_cast<uint8_t>(cb * finalAlpha + db * (1.0f - finalAlpha));

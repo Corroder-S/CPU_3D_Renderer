@@ -60,7 +60,7 @@ void Application::start()
 
 
     auto terrainEntity = m_registry.createEntity();
-    m_registry.addComponents(terrainEntity,
+    /*m_registry.addComponents(terrainEntity,
         Transform{
             .position = { 0.0f, -4.0f, 0.0f },
             .rotation = { 0.0f, 0.0f, 0.0f },
@@ -68,7 +68,7 @@ void Application::start()
         },
         MeshComponent{ &m_terrainMesh },
         terrainMatComp
-    );
+    );*/
 
     Light sun;
     sun.direction = Maths::Normalize(Maths::Vec3f{ 1.0f, -1.0f, -1.0f });

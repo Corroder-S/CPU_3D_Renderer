@@ -3,9 +3,14 @@
 #include <fstream>
 #include <iostream>
 
+// ============================================================================
+// FONT LOADING & RASTERIZATION
+// ============================================================================
+
 bool Font::load(const std::string& filepath, float fontSize) {
     m_fontSize = fontSize;
 
+    // 1. Lecture du fichier binaire .ttf
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         std::cerr << "Font : Impossible d'ouvrir " << filepath << std::endl;
@@ -20,6 +25,7 @@ bool Font::load(const std::string& filepath, float fontSize) {
         return false;
     }
 
+    // 2. Génération de l'atlas bitmap Alpha avec stb_truetype
     m_atlasAlpha.resize(m_atlasWidth * m_atlasHeight);
 
     int res = stbtt_BakeFontBitmap(

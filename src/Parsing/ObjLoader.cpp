@@ -9,7 +9,7 @@
 #include <algorithm>
 
 namespace {
-
+    /// @brief Lit les indices de sommets et de textures pour un coin de face OBJ.
     void ParseFaceVertex(const char*& p, int& vIdx, int& tIdx, size_t vertCount, size_t uvCount)
     {
         vIdx = -1;
@@ -38,6 +38,10 @@ namespace {
     }
 }
 
+// ============================================================================
+// PUBLIC LOADING IMPLEMENTATIONS
+// ============================================================================
+
 bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces)
 {
     Material dummyMaterial;
@@ -46,6 +50,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
 
 bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces, Material& outMaterial)
 {
+    // 1. Ouverture du fichier via Memory-Mapping
     MappedFile file(path);
     if (!file.isOpen()) return false;
 
@@ -59,11 +64,13 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
         outuvs.push_back(Maths::Vec2f(0.0f, 0.0f));
     }
 
+    // 2. Parsing du buffer ligne par ligne
     while (data < end)
     {
         while (data < end && (*data == ' ' || *data == '\t')) data++;
         if (data >= end) break;
 
+        // Position de sommet (v x y z)
         if (data[0] == 'v' && data[1] == ' ')
         {
             const char* p = data + 2;
@@ -72,6 +79,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
             float z = std::strtof(p, (char**)&p);
             outVertices.push_back(Maths::Vec3f(x, y, z));
         }
+        // Coordonnée de texture (vt u v)
         else if (data[0] == 'v' && data[1] == 't' && data[2] == ' ')
         {
             const char* p = data + 3;
@@ -79,6 +87,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
             float v = std::strtof(p, (char**)&p);
             outuvs.push_back(Maths::Vec2f(u, v));
         }
+        // Face polygonale (f v1/t1 v2/t2 v3/t3)
         else if (data[0] == 'f' && data[1] == ' ')
         {
             const char* p = data + 2;
@@ -114,6 +123,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
 
             outFaces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
         }
+        // Chargement de la bibliothèque de matériaux (mtllib file.mtl)
         else if (std::strncmp(data, "mtllib ", 7) == 0)
         {
             const char* p = data + 7;
@@ -138,6 +148,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
                 outMaterial = loadedMaterials.begin()->second;
             }
         }
+        // Affectation d'un matériau (usemtl MaterialName)
         else if (std::strncmp(data, "usemtl ", 7) == 0)
         {
             const char* p = data + 7;
@@ -152,6 +163,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
             }
         }
 
+        // Passage à la ligne suivante
         while (data < end && *data != '\n') data++;
         data++;
     }
