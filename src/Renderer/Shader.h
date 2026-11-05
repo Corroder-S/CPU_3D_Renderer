@@ -7,10 +7,9 @@
 #include "Asset/Color.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
-#include "Asset/Metal.h"
 #include "Maths/SIMD/Utils.h"
 #include "Maths/SIMD/Vec3.h"
-
+#include "Asset/Metal.h"
 
 struct FragmentInput {
     Maths::Vec2f uv;
@@ -49,22 +48,26 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
 
     Maths::Vec3f N = Maths::Normalize(in.normal);
 
-    Color ambient = albedo * (u.material->ambient * u.lights[0].ambient);
+    float metallic = std::clamp(u.material->metallic, 0.0f, 1.0f);
+
+    // Diffuse & Ambiante
+    Color diffColor = albedo * (1.0f - 0.5f * metallic);
+    Color ambient = diffColor * (u.material->ambient * u.lights[0].ambient);
+
+    // Si Ks est nul dans le MTL, blanc pur pour le diamant / albedo pour le métal
+    float specSum = u.material->specular.r + u.material->specular.g + u.material->specular.b;
+    Color baseSpec = (specSum > 0.05f) ? u.material->specular : Color(1.0f, 1.0f, 1.0f, 1.0f);
+    Color specColor = Color::lerp(baseSpec, albedo, metallic);
 
     Color totalDiffuse = Color(0.0f, 0.0f, 0.0f, 0.0f);
     Color totalSpecular = Color(0.0f, 0.0f, 0.0f, 0.0f);
 
-    bool hasSpecular = (u.material->shininess > 0.0f) &&
-        (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f);
+    float shininess = (u.material->shininess > 0.0f) ? u.material->shininess : 32.0f;
 
-    Maths::Vec3f V;
-    bool validV = false;
-    if (hasSpecular) {
-        Maths::Vec3f dirV = u.cameraPos - in.worldPos;
-        if (dirV.MagnitudeSquared() > 0.0f) {
-            V = Maths::Normalize(dirV);
-            validV = true;
-        }
+    Maths::Vec3f V(0.0f, 0.0f, 0.0f);
+    Maths::Vec3f dirV = u.cameraPos - in.worldPos;
+    if (dirV.MagnitudeSquared() > 0.0f) {
+        V = Maths::Normalize(dirV);
     }
 
     for (uint32_t li = 0; li < u.lightCount; ++li)
@@ -72,16 +75,16 @@ inline Color evaluateBlinnPhong(const FragmentInput& in, const ShaderUniforms& u
         Maths::Vec3f Lnorm = Maths::Normalize(u.lights[li].direction);
 
         float NdotL = std::max(0.0f, Maths::Dot(N, Lnorm));
-        totalDiffuse = totalDiffuse + albedo * NdotL;
+        totalDiffuse = totalDiffuse + diffColor * NdotL;
 
-        if (hasSpecular && validV && NdotL > 0.0f)
+        if (NdotL > 0.0f)
         {
             Maths::Vec3f H = Lnorm + V;
             if (H.MagnitudeSquared() > 0.0f) {
                 H = Maths::Normalize(H);
                 float NdotH = std::max(0.0f, Maths::Dot(N, H));
-                float specFactor = std::pow(NdotH, u.material->shininess);
-                totalSpecular = totalSpecular + u.material->specular * specFactor;
+                float specFactor = std::pow(NdotH, shininess);
+                totalSpecular = totalSpecular + specColor * specFactor;
             }
         }
     }
@@ -136,6 +139,9 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
     if (u.material->metallic > 0.0f)
         return Metal::shade_8(in.worldPos, N, C, albedo, *u.material, u.lights, u.lightCount);
 
+    if (u.material->glass > 0.0f)                       //
+        return Metal::shadeGlass_8(in.worldPos, N, C, albedo, *u.material, u.lights, u.lightCount);
+
     Color ambLight = u.material->ambient * u.lights[0].ambient;
     __m256 ambR = _mm256_mul_ps(albedo.r, _mm256_set1_ps(ambLight.r));
     __m256 ambG = _mm256_mul_ps(albedo.g, _mm256_set1_ps(ambLight.g));
@@ -144,20 +150,23 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
     __m256 diffAcc = zero;
     __m256 specAcc = zero;
 
-    const bool hasSpecular = (u.material->shininess > 0.0f) &&
-        (u.material->specular.r > 0.0f || u.material->specular.g > 0.0f || u.material->specular.b > 0.0f);
+    // Fallback de couleur spéculaire : si Ks du MTL est nul, on utilise 1.0 (Blanc) pour faire briller le cristal
+    float specSum = u.material->specular.r + u.material->specular.g + u.material->specular.b;
+    float sR = (specSum > 0.05f) ? u.material->specular.r : 1.0f;
+    float sG = (specSum > 0.05f) ? u.material->specular.g : 1.0f;
+    float sB = (specSum > 0.05f) ? u.material->specular.b : 1.0f;
 
-    Maths::Vec3<__m256> V{};
-    __m256 vMask = zero;
-    if (hasSpecular) {
-        Maths::Vec3<__m256> dirV = { _mm256_sub_ps(C.x, in.worldPos.x),
-                                     _mm256_sub_ps(C.y, in.worldPos.y),
-                                     _mm256_sub_ps(C.z, in.worldPos.z) };
-        vMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirV, dirV), _mm256_set1_ps(1e-8f), _CMP_GT_OS);
-        V = Maths::SIMD::Normalize8(dirV);
-    }
+    // Spéculaire TOUJOURS activé pour les isolants
+    const bool hasSpecular = true;
 
-    const __m256 shin = _mm256_set1_ps(u.material->shininess);
+    Maths::Vec3<__m256> dirV = { _mm256_sub_ps(C.x, in.worldPos.x),
+                                 _mm256_sub_ps(C.y, in.worldPos.y),
+                                 _mm256_sub_ps(C.z, in.worldPos.z) };
+    __m256 vMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirV, dirV), _mm256_set1_ps(1e-8f), _CMP_GT_OS);
+    Maths::Vec3<__m256> V = Maths::SIMD::Normalize8(dirV);
+
+    float shinVal = (u.material->shininess > 0.0f) ? u.material->shininess : 32.0f;
+    const __m256 shin = _mm256_set1_ps(shinVal);
 
     for (uint32_t li = 0; li < u.lightCount; ++li)
     {
@@ -167,29 +176,26 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
         __m256 NdotL = _mm256_max_ps(zero, Maths::SIMD::Dot8(N, L));
         diffAcc = _mm256_add_ps(diffAcc, NdotL);
 
-        if (hasSpecular)
-        {
-            Maths::Vec3<__m256> dirH = { _mm256_add_ps(L.x, V.x), _mm256_add_ps(L.y, V.y), _mm256_add_ps(L.z, V.z) };
-            __m256 hMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirH, dirH), _mm256_set1_ps(1e-8f), _CMP_GT_OS);
-            Maths::Vec3<__m256> H = Maths::SIMD::Normalize8(dirH);
+        Maths::Vec3<__m256> dirH = { _mm256_add_ps(L.x, V.x), _mm256_add_ps(L.y, V.y), _mm256_add_ps(L.z, V.z) };
+        __m256 hMask = _mm256_cmp_ps(Maths::SIMD::Dot8(dirH, dirH), _mm256_set1_ps(1e-8f), _CMP_GT_OS);
+        Maths::Vec3<__m256> H = Maths::SIMD::Normalize8(dirH);
 
-            __m256 mask = _mm256_and_ps(_mm256_cmp_ps(NdotL, zero, _CMP_GT_OS),
-                _mm256_and_ps(vMask, hMask));
+        __m256 mask = _mm256_and_ps(_mm256_cmp_ps(NdotL, zero, _CMP_GT_OS),
+            _mm256_and_ps(vMask, hMask));
 
-            __m256 NdotH = _mm256_min_ps(one, _mm256_max_ps(_mm256_set1_ps(1e-4f), Maths::SIMD::Dot8(N, H)));
+        __m256 NdotH = _mm256_min_ps(one, _mm256_max_ps(_mm256_set1_ps(1e-4f), Maths::SIMD::Dot8(N, H)));
 
-            __m256 specFactor = exp2_ps(_mm256_mul_ps(shin, log2_ps(NdotH)));
-            specAcc = _mm256_add_ps(specAcc, _mm256_and_ps(specFactor, mask));
-        }
+        __m256 specFactor = exp2_ps(_mm256_mul_ps(shin, log2_ps(NdotH)));
+        specAcc = _mm256_add_ps(specAcc, _mm256_and_ps(specFactor, mask));
     }
 
     Color8 finalColor;
     finalColor.r = _mm256_add_ps(_mm256_add_ps(ambR, _mm256_mul_ps(albedo.r, diffAcc)),
-        _mm256_mul_ps(_mm256_set1_ps(u.material->specular.r), specAcc));
+        _mm256_mul_ps(_mm256_set1_ps(sR), specAcc));
     finalColor.g = _mm256_add_ps(_mm256_add_ps(ambG, _mm256_mul_ps(albedo.g, diffAcc)),
-        _mm256_mul_ps(_mm256_set1_ps(u.material->specular.g), specAcc));
+        _mm256_mul_ps(_mm256_set1_ps(sG), specAcc));
     finalColor.b = _mm256_add_ps(_mm256_add_ps(ambB, _mm256_mul_ps(albedo.b, diffAcc)),
-        _mm256_mul_ps(_mm256_set1_ps(u.material->specular.b), specAcc));
+        _mm256_mul_ps(_mm256_set1_ps(sB), specAcc));
 
     finalColor.r = _mm256_min_ps(_mm256_max_ps(finalColor.r, zero), one);
     finalColor.g = _mm256_min_ps(_mm256_max_ps(finalColor.g, zero), one);

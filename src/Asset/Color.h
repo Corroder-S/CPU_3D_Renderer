@@ -54,6 +54,15 @@ struct Color {
         };
     }
 
+    static constexpr Color lerp(const Color& a, const Color& b, float t) {
+        return Color(
+            a.r + (b.r - a.r) * t,
+            a.g + (b.g - a.g) * t,
+            a.b + (b.b - a.b) * t,
+            a.a + (b.a - a.a) * t
+        );
+    }
+
     static const Color Red;
     static const Color Green;
     static const Color Blue;

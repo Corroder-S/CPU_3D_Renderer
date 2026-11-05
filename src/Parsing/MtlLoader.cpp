@@ -4,6 +4,9 @@
 #include <iostream>
 #include <memory>
 #include <algorithm>
+#include <cmath>
+#include <unordered_set>
+#include <vector>
 #include "Asset/Texture.h"
 
 namespace MtlLoader {
@@ -18,8 +21,23 @@ namespace MtlLoader {
             return materials;
         }
 
+        std::string mtlDir = baseDir;
+        if (mtlDir.empty()) {
+            size_t lastSlash = filepath.find_last_of("/\\");
+            if (lastSlash != std::string::npos) {
+                mtlDir = filepath.substr(0, lastSlash);
+            }
+        }
+
+        std::string assetRootDir = mtlDir;
+        size_t parentSlash = mtlDir.find_last_of("/\\");
+        if (parentSlash != std::string::npos) {
+            assetRootDir = mtlDir.substr(0, parentSlash);
+        }
+
         std::string line;
         std::string currentMtl;
+        std::unordered_set<std::string> pbrMaterials;
 
         while (std::getline(file, line)) {
             if (line.empty() || line[0] == '#') continue;
@@ -69,23 +87,75 @@ namespace MtlLoader {
                 float m;
                 ss >> m;
                 materials[currentMtl].metallic = std::clamp(m, 0.0f, 1.0f);
+                pbrMaterials.insert(currentMtl);
             }
             else if (keyword == "Pr") {
                 float r;
                 ss >> r;
                 r = std::clamp(r, 0.03f, 1.0f);
                 materials[currentMtl].shininess = std::min(2.0f / (r * r) - 2.0f, 2048.0f);
+                pbrMaterials.insert(currentMtl);
             }
-            else if (keyword == "map_Kd") {
-                std::string texName;
-                ss >> texName;
-                std::string fullPath = baseDir.empty() ? texName : baseDir + "/" + texName;
-
-                auto tex = std::make_shared<Texture>();
-                if (tex->load(fullPath)) {
-                    materials[currentMtl].texture = tex;
+            else if (keyword == "Tf") {
+                float r = 1.0f, g = 1.0f, b = 1.0f;
+                if (ss >> r >> g >> b) {
+                    float avgTransmission = (r + g + b) / 3.0f;
+                    if (avgTransmission > 0.0f && materials[currentMtl].dissolve >= 1.0f) {
+                        materials[currentMtl].dissolve = 1.0f - (avgTransmission * 0.6f);
+                        materials[currentMtl].glass = 1.0f;
+                    }
                 }
             }
+            else if (keyword == "map_Kd") {
+                std::string rawTexPath;
+                std::getline(ss >> std::ws, rawTexPath);
+                if (!rawTexPath.empty() && rawTexPath.back() == '\r') {
+                    rawTexPath.pop_back();
+                }
+
+                std::replace(rawTexPath.begin(), rawTexPath.end(), '\\', '/');
+
+                std::string fileNameOnly = rawTexPath;
+                size_t slashPos = rawTexPath.find_last_of('/');
+                if (slashPos != std::string::npos) {
+                    fileNameOnly = rawTexPath.substr(slashPos + 1);
+                }
+
+                std::vector<std::string> candidatePaths;
+
+                candidatePaths.push_back(assetRootDir + "/Textures/" + fileNameOnly);
+
+                candidatePaths.push_back(mtlDir + "/" + rawTexPath);
+                candidatePaths.push_back(mtlDir + "/" + fileNameOnly);
+
+                candidatePaths.push_back(assetRootDir + "/Image/" + fileNameOnly);
+
+                candidatePaths.push_back(rawTexPath);
+                candidatePaths.push_back(fileNameOnly);
+
+                auto tex = std::make_shared<Texture>();
+                bool loaded = false;
+
+                for (const auto& path : candidatePaths) {
+                    if (tex->load(path)) {
+                        materials[currentMtl].texture = tex;
+                        loaded = true;
+                        break;
+                    }
+                }
+
+                if (!loaded) {
+                    std::cerr << "MtlLoader : Texture introuvable '" << rawTexPath
+                        << "' (matériau '" << currentMtl << "')" << std::endl;
+                }
+            }
+        }
+
+        for (const auto& name : pbrMaterials) {
+            Color& d = materials[name].diffuse;
+            d.r = std::sqrt(d.r);
+            d.g = std::sqrt(d.g);
+            d.b = std::sqrt(d.b);
         }
 
         return materials;

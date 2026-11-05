@@ -51,19 +51,29 @@ public:
     ~Renderer();
 
     void init(uint32_t width, uint32_t height);
+
+    void drawSubMesh(const Mesh& mesh, const SubMesh& submesh,
+        const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
+        bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
+
     void drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP,
         const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
         bool isTransparent, std::vector<ScreenTriangle>& outTriangles);
 
-    void beginFrame(const Camera &cam, float aspectRatio);
+    void beginFrame(const Camera& cam, float aspectRatio);
 
     void setLights(const Light* lights, uint32_t count);
-    void submitMesh(const Mesh &mesh, const Transform& transform, const Material &material);
+
+    void submitMesh(const Mesh& mesh, const Transform& transform, const std::vector<Material>& materials);
+
+    void submitMesh(const Mesh& mesh, const Transform& transform);
+
+    void submitMesh(const Mesh& mesh, const Transform& transform, const Material& material);
 
     void endFrame();
 
     void drawText(const Font& font, const std::string& text, int x, int y, const Color& color);
-    void drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<>& viewProj);
+    void drawParticle(const ParticleVertex& particle, const Maths::Matrix4x4<>& viewProj);
     void present(SDL_Window* window);
     void clearFrameBuffer(uint32_t color);
     void clearDepthBuffer();
@@ -88,34 +98,31 @@ public:
 
 private:
     SDL_Surface* m_sdlSurface = nullptr;
-    double m_timeSceneMs     = 0.0;
+    double m_timeSceneMs = 0.0;
     double m_timeClearBinsMs = 0.0;
-    double m_timeMeshMs      = 0.0;
-    double m_timeBinMs       = 0.0;
-    double m_timeRasterMs    = 0.0;
+    double m_timeMeshMs = 0.0;
+    double m_timeBinMs = 0.0;
+    double m_timeRasterMs = 0.0;
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 
-    uint32_t* m_framebuffer = nullptr; // Non owning memory
+    uint32_t* m_framebuffer = nullptr;
     std::vector<float>    m_zBuffer;
 
-
     std::vector<Maths::Vec4f> m_clipPositions;
-    std::vector<Maths::Vec3f> m_worldNormals;
     std::vector<Maths::Vec3f> m_worldPositions;
     std::vector<ScreenTriangle> m_screenTriangles;
-
 
     std::vector<ScreenTriangle> m_opaqueTriangles;
     std::vector<ScreenTriangle> m_transparentTriangles;
 
-    ParticleManager* m_particleManager;
+    ParticleManager* m_particleManager = nullptr;
 
     uint32_t m_numWorkers = 0;
     std::vector<std::unique_ptr<Worker>> m_workers;
 
     std::vector<std::vector<ScreenTriangle>> m_tileBins;
-    std::atomic<uint32_t> m_tileCounter{0};
+    std::atomic<uint32_t> m_tileCounter{ 0 };
     std::vector<Tile> m_tiles;
     const int TILE_SIZE = 160;
     Maths::Matrix4x4<> m_viewProj;

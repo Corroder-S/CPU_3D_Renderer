@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "../src/Scene/Camera.h"
+#include "Scene/Camera.h"
 #include "Asset/Light.h"
 #include "Asset/Material.h"
 #include "Asset/Mesh.h"
@@ -17,7 +17,7 @@ struct MeshComponent
 
 struct MaterialComponent
 {
-    Material material;
+    std::vector<Material> materials;
 };
 
 struct LightComponent

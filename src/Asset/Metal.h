@@ -12,21 +12,28 @@
 namespace Metal {
 
     constexpr float kLightDirSign = -1.0f;
-
-    constexpr float kEnvSaturation = 0.60f;
-
     constexpr float kHorizonBlurMin = 0.30f;
-
+    constexpr float kMetalGrazingBoost = 0.30f;
+    constexpr float kGlassF0 = 0.04f;
+    constexpr float kGlassBodyOpacity = 0.35f;
+    constexpr float kGlassEnvScale = 0.60f;
+    constexpr float kGlassDebugAlpha = 0.8f;
+    constexpr int   kGlassDebugView = 0;
+    constexpr float kGlassMaxShininess = 200.0f;
     constexpr float kSunColor[3] = { 1.00f, 0.95f, 0.85f };
+
     struct Environment {
         float horizonSky[3] = { 0.20f, 0.22f, 0.30f };
         float zenith[3] = { 0.03f, 0.03f, 0.07f };
         float horizonGround[3] = { 0.12f, 0.30f, 0.12f };
         float nadir[3] = { 0.03f, 0.09f, 0.04f };
+        float exposure = 1.0f;
+        float saturation = 0.60f;
     };
     inline Environment g_env;
 
-    inline void setEnvironment(const Color& sky, const Color& ground, float horizonLift = 0.15f)
+    inline void setEnvironment(const Color& sky, const Color& ground,
+        float horizonLift = 0.15f, float exposure = 1.0f, float saturation = 0.60f)
     {
         const float s[3] = { sky.r * sky.r,       sky.g * sky.g,       sky.b * sky.b };
         const float g[3] = { ground.r * ground.r, ground.g * ground.g, ground.b * ground.b };
@@ -36,6 +43,8 @@ namespace Metal {
             g_env.horizonGround[i] = g[i];
             g_env.nadir[i] = g[i] * 0.3f;
         }
+        g_env.exposure = exposure;
+        g_env.saturation = saturation;
     }
 
     inline Color colorFromARGB(uint32_t c)
@@ -48,7 +57,7 @@ namespace Metal {
         inline float envColor(const float* c, int i)
         {
             float grey = 0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2];
-            return grey + (c[i] - grey) * kEnvSaturation;
+            return grey + (c[i] - grey) * g_env.saturation;
         }
 
         inline __m256 lerp8(__m256 a, __m256 b, __m256 t)
@@ -74,6 +83,13 @@ namespace Metal {
             return _mm256_mul_ps(_mm256_mul_ps(x2, x2), x);
         }
 
+        inline __m256 pow8_8(__m256 x)
+        {
+            __m256 x2 = _mm256_mul_ps(x, x);
+            __m256 x4 = _mm256_mul_ps(x2, x2);
+            return _mm256_mul_ps(x4, x4);
+        }
+
         inline Maths::Vec3f toLight(const Light& l)
         {
             Maths::Vec3f d = Maths::Normalize(l.direction);
@@ -86,6 +102,7 @@ namespace Metal {
             float sunPower, float sunIntensity, float blur)
         {
             const __m256 zero = _mm256_setzero_ps();
+            const __m256 expo = _mm256_set1_ps(g_env.exposure);
 
             __m256 up = _mm256_sqrt_ps(saturate8(R.y));
             __m256 down = _mm256_sqrt_ps(saturate8(_mm256_sub_ps(zero, R.y)));
@@ -96,19 +113,65 @@ namespace Metal {
                 _mm256_mul_ps(R.y, _mm256_set1_ps(toSun.y))),
                 _mm256_mul_ps(R.z, _mm256_set1_ps(toSun.z)));
             d = _mm256_max_ps(d, _mm256_set1_ps(1e-4f));
-            __m256 expo = _mm256_max_ps(_mm256_mul_ps(_mm256_set1_ps(sunPower), log2_ps(d)), _mm256_set1_ps(-126.0f));
-            __m256 sun = _mm256_mul_ps(exp2_ps(expo), _mm256_set1_ps(sunIntensity));
+            __m256 e = _mm256_max_ps(_mm256_mul_ps(_mm256_set1_ps(sunPower), log2_ps(d)), _mm256_set1_ps(-126.0f));
+            __m256 sun = _mm256_mul_ps(exp2_ps(e), _mm256_set1_ps(sunIntensity));
 
             auto channel = [&](int c) {
                 __m256 sky = lerp8(_mm256_set1_ps(envColor(g_env.horizonSky, c)), _mm256_set1_ps(envColor(g_env.zenith, c)), up);
                 __m256 ground = lerp8(_mm256_set1_ps(envColor(g_env.horizonGround, c)), _mm256_set1_ps(envColor(g_env.nadir, c)), down);
-                __m256 env = lerp8(ground, sky, blend);
+                __m256 env = _mm256_mul_ps(lerp8(ground, sky, blend), expo);
                 return _mm256_add_ps(env, _mm256_mul_ps(sun, _mm256_set1_ps(envColor(kSunColor, c))));
                 };
             return Rgb8{ channel(0), channel(1), channel(2) };
         }
-    }
 
+        struct View8 {
+            __m256 NdotV;
+            Maths::Vec3<__m256> R;
+        };
+
+        inline View8 viewSetup(const Maths::Vec3<__m256>& worldPos, Maths::Vec3<__m256> N,
+            const Maths::Vec3<__m256>& C)
+        {
+            const __m256 zero = _mm256_setzero_ps();
+
+            Maths::Vec3<__m256> dirV = { _mm256_sub_ps(C.x, worldPos.x),
+                                         _mm256_sub_ps(C.y, worldPos.y),
+                                         _mm256_sub_ps(C.z, worldPos.z) };
+            Maths::Vec3<__m256> V = Maths::SIMD::Normalize8(dirV);
+
+            __m256 NdotVraw = Maths::SIMD::Dot8(N, V);
+
+            __m256 backMask = _mm256_cmp_ps(NdotVraw, zero, _CMP_LT_OS);
+            N.x = _mm256_blendv_ps(N.x, _mm256_sub_ps(zero, N.x), backMask);
+            N.y = _mm256_blendv_ps(N.y, _mm256_sub_ps(zero, N.y), backMask);
+            N.z = _mm256_blendv_ps(N.z, _mm256_sub_ps(zero, N.z), backMask);
+
+            NdotVraw = _mm256_max_ps(zero, Maths::SIMD::Dot8(N, V));
+
+            __m256 twoNV = _mm256_add_ps(NdotVraw, NdotVraw);
+            View8 v;
+            v.NdotV = saturate8(NdotVraw);
+
+            v.R = { _mm256_sub_ps(_mm256_mul_ps(twoNV, N.x), V.x),
+                    _mm256_sub_ps(_mm256_mul_ps(twoNV, N.y), V.y),
+                    _mm256_sub_ps(_mm256_mul_ps(twoNV, N.z), V.z) };
+            return v;
+        }
+
+        inline __m256 diffuseSum(const Maths::Vec3<__m256>& N, const Light* lights, uint32_t lightCount)
+        {
+            __m256 acc = _mm256_setzero_ps();
+            for (uint32_t li = 0; li < lightCount; ++li)
+            {
+                Maths::Vec3f Ld = toLight(lights[li]);
+                Maths::Vec3<__m256> L = { _mm256_set1_ps(Ld.x), _mm256_set1_ps(Ld.y), _mm256_set1_ps(Ld.z) };
+                acc = _mm256_add_ps(acc, _mm256_max_ps(_mm256_setzero_ps(), Maths::SIMD::Dot8(N, L)));
+            }
+            return acc;
+        }
+
+    }
 
     inline Color8 shade_8(const Maths::Vec3<__m256>& worldPos,
         const Maths::Vec3<__m256>& N,
@@ -118,7 +181,6 @@ namespace Metal {
         const Light* lights, uint32_t lightCount)
     {
         using namespace detail;
-        const __m256 zero = _mm256_setzero_ps();
         const __m256 one = _mm256_set1_ps(1.0f);
 
         const float metallic = std::clamp(mat.metallic, 0.0f, 1.0f);
@@ -126,25 +188,15 @@ namespace Metal {
         const float rough = std::sqrt(2.0f / (shininess + 2.0f));
         const float blur = std::min(1.0f, kHorizonBlurMin + 0.50f * rough);
         const float sunI = std::min(4.0f, (shininess + 2.0f) * 0.0796f);
-
         const Maths::Vec3f toSun = toLight(lights[0]);
 
-        Maths::Vec3<__m256> dirV = { _mm256_sub_ps(C.x, worldPos.x),
-                                     _mm256_sub_ps(C.y, worldPos.y),
-                                     _mm256_sub_ps(C.z, worldPos.z) };
-        Maths::Vec3<__m256> V = Maths::SIMD::Normalize8(dirV);
-
-        __m256 NdotVraw = Maths::SIMD::Dot8(N, V);
-        __m256 NdotV = saturate8(NdotVraw);
-        __m256 twoNV = _mm256_add_ps(NdotVraw, NdotVraw);
-        Maths::Vec3<__m256> R = { _mm256_sub_ps(_mm256_mul_ps(twoNV, N.x), V.x),
-                                  _mm256_sub_ps(_mm256_mul_ps(twoNV, N.y), V.y),
-                                  _mm256_sub_ps(_mm256_mul_ps(twoNV, N.z), V.z) };
+        View8 v = viewSetup(worldPos, N, C);
 
         const __m256 mm = _mm256_set1_ps(metallic);
         const __m256 diel = _mm256_set1_ps(0.04f);
         const __m256 smooth = _mm256_set1_ps(1.0f - rough);
-        __m256 f5 = pow5_8(_mm256_sub_ps(one, NdotV));
+        const __m256 fScale = _mm256_set1_ps(1.0f - metallic * (1.0f - kMetalGrazingBoost));
+        __m256 f5 = _mm256_mul_ps(pow5_8(_mm256_sub_ps(one, v.NdotV)), fScale);
 
         __m256 F0r = lerp8(diel, albedo.r, mm);
         __m256 F0g = lerp8(diel, albedo.g, mm);
@@ -153,15 +205,9 @@ namespace Metal {
         __m256 Fg = _mm256_add_ps(F0g, _mm256_mul_ps(_mm256_sub_ps(_mm256_max_ps(smooth, F0g), F0g), f5));
         __m256 Fb = _mm256_add_ps(F0b, _mm256_mul_ps(_mm256_sub_ps(_mm256_max_ps(smooth, F0b), F0b), f5));
 
-        Rgb8 env = sampleEnvironment(R, toSun, shininess, sunI, blur);
+        Rgb8 env = sampleEnvironment(v.R, toSun, shininess, sunI, blur);
 
-        __m256 diffAcc = zero;
-        for (uint32_t li = 0; li < lightCount; ++li)
-        {
-            Maths::Vec3f Ld = toLight(lights[li]);
-            Maths::Vec3<__m256> L = { _mm256_set1_ps(Ld.x), _mm256_set1_ps(Ld.y), _mm256_set1_ps(Ld.z) };
-            diffAcc = _mm256_add_ps(diffAcc, _mm256_max_ps(zero, Maths::SIMD::Dot8(N, L)));
-        }
+        __m256 diffAcc = diffuseSum(N, lights, lightCount);
         Color ambLight = mat.ambient * lights[0].ambient;
         const __m256 kd = _mm256_set1_ps(1.0f - metallic);
 
@@ -170,10 +216,60 @@ namespace Metal {
         __m256 lb = _mm256_mul_ps(_mm256_mul_ps(kd, albedo.b), _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.b)));
 
         Color8 out;
-        out.r = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lr, _mm256_mul_ps(Fr, env.r))));
+        out.r = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lr, _mm256_mul_ps(Fr, env.r))));  // gamma ~2.0
         out.g = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lg, _mm256_mul_ps(Fg, env.g))));
         out.b = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lb, _mm256_mul_ps(Fb, env.b))));
         out.a = saturate8(_mm256_mul_ps(albedo.a, _mm256_set1_ps(mat.dissolve)));
+        return out;
+    }
+
+    inline Color8 shadeGlass_8(const Maths::Vec3<__m256>& worldPos,
+        const Maths::Vec3<__m256>& N,
+        const Maths::Vec3<__m256>& C,
+        const Color8& albedo,
+        const Material& mat,
+        const Light* lights, uint32_t lightCount)
+    {
+        using namespace detail;
+        const __m256 one = _mm256_set1_ps(1.0f);
+
+        const float shininess = std::clamp(mat.shininess, 1.0f, kGlassMaxShininess);
+        const float rough = std::sqrt(2.0f / (shininess + 2.0f));
+        const float blur = std::min(1.0f, kHorizonBlurMin + 0.50f * rough);
+        const float sunI = std::min(4.0f, (shininess + 2.0f) * 0.0796f);
+        const Maths::Vec3f toSun = toLight(lights[0]);
+
+        View8 v = viewSetup(worldPos, N, C);
+
+        const __m256 F0 = _mm256_set1_ps(kGlassF0);
+        __m256 F = _mm256_add_ps(F0, _mm256_mul_ps(_mm256_sub_ps(one, F0), pow8_8(_mm256_sub_ps(one, v.NdotV))));
+
+        Rgb8 env = sampleEnvironment(v.R, toSun, shininess, sunI, blur);
+        const __m256 envScale = _mm256_set1_ps(kGlassEnvScale);
+        env.r = _mm256_mul_ps(env.r, envScale);
+        env.g = _mm256_mul_ps(env.g, envScale);
+        env.b = _mm256_mul_ps(env.b, envScale);
+
+        __m256 diffAcc = diffuseSum(N, lights, lightCount);
+        Color ambLight = mat.ambient * lights[0].ambient;
+        __m256 br = _mm256_mul_ps(albedo.r, _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.r)));
+        __m256 bg = _mm256_mul_ps(albedo.g, _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.g)));
+        __m256 bb = _mm256_mul_ps(albedo.b, _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.b)));
+
+        __m256 ab = saturate8(_mm256_mul_ps(albedo.a, _mm256_set1_ps(mat.dissolve * kGlassBodyOpacity)));
+        __m256 a = _mm256_max_ps(_mm256_sub_ps(_mm256_add_ps(ab, F), _mm256_mul_ps(ab, F)), _mm256_set1_ps(1e-3f));
+
+        Color8 out;
+        out.r = _mm256_sqrt_ps(saturate8(_mm256_div_ps(_mm256_add_ps(_mm256_mul_ps(br, ab), _mm256_mul_ps(env.r, F)), a)));
+        out.g = _mm256_sqrt_ps(saturate8(_mm256_div_ps(_mm256_add_ps(_mm256_mul_ps(bg, ab), _mm256_mul_ps(env.g, F)), a)));
+        out.b = _mm256_sqrt_ps(saturate8(_mm256_div_ps(_mm256_add_ps(_mm256_mul_ps(bb, ab), _mm256_mul_ps(env.b, F)), a)));
+        out.a = (kGlassDebugAlpha >= 0.0f) ? _mm256_set1_ps(kGlassDebugAlpha) : a;
+        if (kGlassDebugView == 1) {
+            out.r = saturate8(F);
+            out.g = saturate8(ab);
+            out.b = v.NdotV;
+            out.a = one;
+        }
         return out;
     }
 
