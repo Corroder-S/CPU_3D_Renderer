@@ -72,23 +72,9 @@ public:
         }
 
         mesh.faceNormals.resize(mesh.faces.size());
-        mesh.vertexNormals.assign(mesh.vertices.size(), Maths::Vec3f{ 0.0f, 0.0f, 0.0f });
 
-        for (size_t i = 0; i < mesh.faces.size(); ++i) {
-            const Maths::Vec3f& v0 = mesh.vertices[mesh.faces[i].v.x];
-            const Maths::Vec3f& v1 = mesh.vertices[mesh.faces[i].v.y];
-            const Maths::Vec3f& v2 = mesh.vertices[mesh.faces[i].v.z];
-
-            mesh.faceNormals[i] = Maths::Normalize(Maths::Cross(v2 - v0, v1 - v0));
-
-            mesh.vertexNormals[mesh.faces[i].v.x] += mesh.faceNormals[i];
-            mesh.vertexNormals[mesh.faces[i].v.y] += mesh.faceNormals[i];
-            mesh.vertexNormals[mesh.faces[i].v.z] += mesh.faceNormals[i];
-        }
-
-        for (auto& n : mesh.vertexNormals) {
-            n = Maths::Normalize(n);
-        }
+        mesh.computeNormals(70.0f);
+        return mesh;
 
         return mesh;
     }
