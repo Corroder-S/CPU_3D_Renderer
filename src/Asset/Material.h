@@ -16,6 +16,8 @@ struct Material {
 
 	float shininess = 2.0f;
 	float dissolve = 1.0f;
+	float metallic = 0.0f;
+	float glass = 0.0f;
 
 	int illum = 1;
 

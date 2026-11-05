@@ -31,31 +31,21 @@ void Renderer::init(uint32_t width, uint32_t height)
     }
 }
 
-
-void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
-    const ShaderUniforms& uniforms,
+void Renderer::drawSubMesh(const Mesh& mesh, const SubMesh& submesh,
+    const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
     bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
 {
-    size_t vertexCount = mesh.vertices.size();
-
-    m_clipPositions.resize(vertexCount);
-    m_worldNormals.resize(vertexCount);
-    m_worldPositions.resize(vertexCount);
-
-    for (size_t i = 0; i < vertexCount; ++i)
+    for (size_t fi = 0; fi < submesh.faces.size(); ++fi)
     {
-        m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
-        m_worldNormals[i] = model.TransformDirection(mesh.vertexNormals[i]);
+        const auto& f = submesh.faces[fi];
 
-        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
-        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
-    }
+        const Maths::Vec3f n0 = Maths::Normalize(model.TransformDirection(submesh.cornerNormals[fi * 3 + 0]));
+        const Maths::Vec3f n1 = Maths::Normalize(model.TransformDirection(submesh.cornerNormals[fi * 3 + 1]));
+        const Maths::Vec3f n2 = Maths::Normalize(model.TransformDirection(submesh.cornerNormals[fi * 3 + 2]));
 
-    for (auto& f : mesh.faces)
-    {
-        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], m_worldNormals[f.v.x], m_worldPositions[f.v.x] };
-        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], m_worldNormals[f.v.z], m_worldPositions[f.v.z] };
-        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], m_worldNormals[f.v.y], m_worldPositions[f.v.y] };
+        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], n0, m_worldPositions[f.v.x] };
+        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], n1, m_worldPositions[f.v.z] };
+        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], n2, m_worldPositions[f.v.y] };
 
         ClipVertex clipped[6];
         int numTris = clipTriangleNear(v0, v1, v2, clipped);
@@ -99,6 +89,26 @@ void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const M
     }
 }
 
+void Renderer::drawMesh(const Mesh& mesh, const Maths::Matrix4x4<>& MVP, const Maths::Matrix4x4<>& model,
+    const ShaderUniforms& uniforms, bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
+{
+    const size_t vertexCount = mesh.vertices.size();
+    m_clipPositions.resize(vertexCount);
+    m_worldPositions.resize(vertexCount);
+
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
+    }
+
+    for (const auto& submesh : mesh.submeshes)
+    {
+        drawSubMesh(mesh, submesh, model, uniforms, isTransparent, outTriangles);
+    }
+}
+
 void Renderer::beginFrame(const Camera& cam, float aspectRatio)
 {
     m_timeMeshMs = 0.0;
@@ -120,21 +130,95 @@ void Renderer::beginFrame(const Camera& cam, float aspectRatio)
     m_camPosition = cam.position;
 }
 
-
-void Renderer::submitMesh(const Mesh& mesh, const Transform& transform,
-                          const Material& material)
+void Renderer::submitMesh(const Mesh& mesh, const Transform& transform)
 {
     auto t0 = Clock::now();
 
     auto model = transform.getModelMatrix();
     auto MVP = m_viewProj * model;
 
-    ShaderUniforms uniforms{ &material, m_frameLights, m_frameLightCount, m_camPosition };
+    const size_t vertexCount = mesh.vertices.size();
+    m_clipPositions.resize(vertexCount);
+    m_worldPositions.resize(vertexCount);
 
-    bool isTransparent = (material.dissolve < 1.0f);
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
+    }
+
+    for (const auto& submesh : mesh.submeshes)
+    {
+        ShaderUniforms uniforms{ &submesh.material, m_frameLights, m_frameLightCount, m_camPosition };
+        bool isTransparent = (submesh.material.dissolve < 1.0f);
+        auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
+
+        drawSubMesh(mesh, submesh, model, uniforms, isTransparent, targetList);
+    }
+
+    m_timeMeshMs += toMs(t0, Clock::now());
+}
+
+void Renderer::submitMesh(const Mesh& mesh, const Transform& transform, const Material& overrideMaterial)
+{
+    auto t0 = Clock::now();
+
+    auto model = transform.getModelMatrix();
+    auto MVP = m_viewProj * model;
+
+    const size_t vertexCount = mesh.vertices.size();
+    m_clipPositions.resize(vertexCount);
+    m_worldPositions.resize(vertexCount);
+
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
+    }
+
+    ShaderUniforms uniforms{ &overrideMaterial, m_frameLights, m_frameLightCount, m_camPosition };
+    bool isTransparent = (overrideMaterial.dissolve < 1.0f);
     auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
 
-    drawMesh(mesh, MVP, model, uniforms, isTransparent, targetList);
+    for (const auto& submesh : mesh.submeshes)
+    {
+        drawSubMesh(mesh, submesh, model, uniforms, isTransparent, targetList);
+    }
+
+    m_timeMeshMs += toMs(t0, Clock::now());
+}
+
+void Renderer::submitMesh(const Mesh& mesh, const Transform& transform, const std::vector<Material>& materials)
+{
+    auto t0 = Clock::now();
+
+    auto model = transform.getModelMatrix();
+    auto MVP = m_viewProj * model;
+
+    const size_t vertexCount = mesh.vertices.size();
+    m_clipPositions.resize(vertexCount);
+    m_worldPositions.resize(vertexCount);
+
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        m_clipPositions[i] = MVP * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        Maths::Vec4f wPos = model * Maths::Vec4f(mesh.vertices[i], 1.0f);
+        m_worldPositions[i] = { wPos.x, wPos.y, wPos.z };
+    }
+
+    for (size_t i = 0; i < mesh.submeshes.size(); ++i)
+    {
+        const auto& submesh = mesh.submeshes[i];
+        const Material& mat = (i < materials.size()) ? materials[i] : submesh.material;
+
+        ShaderUniforms uniforms{ &mat, m_frameLights, m_frameLightCount, m_camPosition };
+        bool isTransparent = (mat.dissolve < 1.0f);
+        auto& targetList = isTransparent ? m_transparentTriangles : m_opaqueTriangles;
+
+        drawSubMesh(mesh, submesh, model, uniforms, isTransparent, targetList);
+    }
 
     m_timeMeshMs += toMs(t0, Clock::now());
 }
@@ -163,7 +247,6 @@ void Renderer::endFrame()
             }
         }
     }
-
 
     if (!m_transparentTriangles.empty())
     {
@@ -194,7 +277,6 @@ void Renderer::endFrame()
     auto tBin1 = Clock::now();
     m_timeBinMs = toMs(tBin0, tBin1);
 
-    // Fork
     auto tRaster0 = Clock::now();
     m_tileCounter = 0;
     for (int i = 0; i < m_numWorkers; i++) {
@@ -219,13 +301,12 @@ void Renderer::setLights(const Light* lights, uint32_t count)
     m_frameLightCount = count;
 }
 
-
 void Renderer::drawText(const Font& font, const std::string& text, int x, int y, const Color& color)
 {
     ::drawText(font, text, x, y, color, m_framebuffer, m_width, m_height);
 }
 
-void Renderer::drawParticle(const ParticleVertex &particle, const Maths::Matrix4x4<> &viewProj)
+void Renderer::drawParticle(const ParticleVertex& particle, const Maths::Matrix4x4<>& viewProj)
 {
     Maths::Vec4f clipped = { particle.position.x, particle.position.y, particle.position.z, 1.0f };
     clipped = viewProj * clipped;
@@ -253,10 +334,9 @@ void Renderer::drawParticle(const ParticleVertex &particle, const Maths::Matrix4
                     uint32_t src = particle.color;
 
                     uint32_t r = std::min(((dst >> 16) & 0xFF) + ((src >> 16) & 0xFF), 255u);
-                    uint32_t g = std::min(((dst >>  8) & 0xFF) + ((src >>  8) & 0xFF), 255u);
-                    uint32_t b = std::min(( dst        & 0xFF) + ( src        & 0xFF), 255u);
+                    uint32_t g = std::min(((dst >> 8) & 0xFF) + ((src >> 8) & 0xFF), 255u);
+                    uint32_t b = std::min((dst & 0xFF) + (src & 0xFF), 255u);
                     getFrameBuffer()[py * m_width + px] = 0xFF000000 | (r << 16) | (g << 8) | b;
-
                 }
             }
         }
@@ -298,9 +378,9 @@ void Renderer::initTiles() {
             m_tiles.push_back({
                 tx * tileWidth,
                 ty * tileHeight,
-                (tx == tilesX - 1) ? (int)m_width  : (tx + 1) * tileWidth,
+                (tx == tilesX - 1) ? (int)m_width : (tx + 1) * tileWidth,
                 (ty == tilesY - 1) ? (int)m_height : (ty + 1) * tileHeight
-            });
+                });
         }
     }
 
@@ -330,8 +410,8 @@ void Renderer::workerLoop(Worker& w)
                     tri.wp0, tri.wp1, tri.wp2,
                     m_framebuffer, m_zBuffer,
                     tri.uniforms,
-                    {tile.x_min, tile.y_min},
-                    {tile.x_max, tile.y_max}, m_width,
+                    { tile.x_min, tile.y_min },
+                    { tile.x_max, tile.y_max }, m_width,
                     tri.writeDepth
                 );
             }

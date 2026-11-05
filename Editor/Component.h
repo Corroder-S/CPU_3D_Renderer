@@ -17,7 +17,7 @@ struct MeshComponent
 
 struct MaterialComponent
 {
-    Material material;
+    std::vector<Material> materials;
 };
 
 struct LightComponent

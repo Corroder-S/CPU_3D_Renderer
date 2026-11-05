@@ -28,7 +28,6 @@ public:
         int numVerticesX = params.width + 1;
         int numVerticesZ = params.depth + 1;
 
-
         float offsetX = (params.width * params.cellSize) * 0.5f;
         float offsetZ = (params.depth * params.cellSize) * 0.5f;
 
@@ -40,15 +39,18 @@ public:
                 float worldX = x * params.cellSize;
                 float worldZ = z * params.cellSize;
 
-                float height = perlin.fbm(worldX * params.frequency,worldZ * params.frequency,params.octaves,params.persistence,params.lacunarity) * params.heightScale;
+                float height = perlin.fbm(worldX * params.frequency, worldZ * params.frequency, params.octaves, params.persistence, params.lacunarity) * params.heightScale;
 
                 mesh.vertices.push_back({ worldX - offsetX, height, worldZ - offsetZ });
                 mesh.uvs.push_back({ (float)x / params.width, (float)z / params.depth });
             }
         }
 
+        SubMesh submesh;
+        submesh.materialName = "TerrainMaterial";
+
         int numFaces = params.width * params.depth * 2;
-        mesh.faces.reserve(numFaces);
+        submesh.faces.reserve(numFaces);
 
         for (int z = 0; z < params.depth; ++z) {
             for (int x = 0; x < params.width; ++x) {
@@ -61,34 +63,17 @@ public:
                 Face f1;
                 f1.v = Maths::Vec3i{ topLeft, bottomLeft, topRight };
                 f1.uv = Maths::Vec3i{ topLeft, bottomLeft, topRight };
-                mesh.faces.push_back(f1);
-
+                submesh.faces.push_back(f1);
 
                 Face f2;
                 f2.v = Maths::Vec3i{ topRight, bottomLeft, bottomRight };
                 f2.uv = Maths::Vec3i{ topRight, bottomLeft, bottomRight };
-                mesh.faces.push_back(f2);
+                submesh.faces.push_back(f2);
             }
         }
 
-        mesh.faceNormals.resize(mesh.faces.size());
-        mesh.vertexNormals.assign(mesh.vertices.size(), Maths::Vec3f{ 0.0f, 0.0f, 0.0f });
-
-        for (size_t i = 0; i < mesh.faces.size(); ++i) {
-            const Maths::Vec3f& v0 = mesh.vertices[mesh.faces[i].v.x];
-            const Maths::Vec3f& v1 = mesh.vertices[mesh.faces[i].v.y];
-            const Maths::Vec3f& v2 = mesh.vertices[mesh.faces[i].v.z];
-
-            mesh.faceNormals[i] = Maths::Normalize(Maths::Cross(v2 - v0, v1 - v0));
-
-            mesh.vertexNormals[mesh.faces[i].v.x] += mesh.faceNormals[i];
-            mesh.vertexNormals[mesh.faces[i].v.y] += mesh.faceNormals[i];
-            mesh.vertexNormals[mesh.faces[i].v.z] += mesh.faceNormals[i];
-        }
-
-        for (auto& n : mesh.vertexNormals) {
-            n = Maths::Normalize(n);
-        }
+        mesh.submeshes.push_back(submesh);
+        mesh.computeNormals(70.0f);
 
         return mesh;
     }
