@@ -11,8 +11,8 @@
 #include "Asset/Mesh.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
-#include "Scene/Camera.h"
-#include "Scene/Transform.h"
+#include "Engine/Camera.h"
+#include "Engine/Transform.h"
 #include "Asset/Font.h"
 #include "Renderer/Emitter/ParticleManager.h"
 #include "Clip.h"
@@ -81,19 +81,8 @@ public:
     void setSDLSURFACE(SDL_Surface* surface) { m_sdlSurface = surface; }
     void onResize(uint32_t width, uint32_t height);
 
-    double getTimeSceneMs()     const { return m_timeSceneMs; }
-    double getTimeClearBinsMs() const { return m_timeClearBinsMs; }
-    double getTimeMeshMs()      const { return m_timeMeshMs; }
-    double getTimeBinMs()       const { return m_timeBinMs; }
-    double getTimeRasterMs()    const { return m_timeRasterMs; }
-
 private:
     SDL_Surface* m_sdlSurface = nullptr;
-    double m_timeSceneMs = 0.0;
-    double m_timeClearBinsMs = 0.0;
-    double m_timeMeshMs = 0.0;
-    double m_timeBinMs = 0.0;
-    double m_timeRasterMs = 0.0;
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 

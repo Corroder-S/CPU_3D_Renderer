@@ -4,13 +4,6 @@
 
 #include <iostream>
 #include <cstdio>
-#include <chrono>
-
-using EClock = std::chrono::high_resolution_clock;
-static double eToMs(EClock::time_point a, EClock::time_point b)
-{
-    return std::chrono::duration<double, std::milli>(b - a).count();
-}
 
 int Engine::run()
 {
@@ -49,7 +42,6 @@ int Engine::run()
     float fpsAccum = 0.0f;
     int   fpsCount = 0;
     char  title[256];
-    double tClearAccum = 0, tUpdateAccum = 0, tSdlAccum = 0;
 
     while (m_isRunning)
     {
@@ -71,45 +63,19 @@ int Engine::run()
 
         Time::update();
 
-        auto tc0 = EClock::now();
         m_renderer.clearFrameBuffer(m_clearColor);
         m_renderer.clearDepthBuffer();
-        auto tc1 = EClock::now();
-
         update();
-        auto tc2 = EClock::now();
-
         SDL_UpdateWindowSurface(m_window);
-        auto tc3 = EClock::now();
-
-        tClearAccum  += eToMs(tc0, tc1);
-        tUpdateAccum += eToMs(tc1, tc2);
-        tSdlAccum    += eToMs(tc2, tc3);
 
         fpsAccum += Time::deltaTime();
         fpsCount++;
         if (fpsAccum >= 1.0f)
         {
-            float fps   = fpsCount / fpsAccum;
-            double n    = fpsCount;
-            double updateAvg = tUpdateAccum / n;
-            double sceneMs   = m_renderer.getTimeSceneMs();
-            std::snprintf(title, sizeof(title),
-                "%s  |  %.0f FPS  |  clear:%.2f  update:%.2f (scene:%.2f [clrBins:%.2f mesh:%.2f bin:%.2f raster:%.2f] particles:%.2f)  sdl:%.2f  ms per frame:%.2f",
-                WINDOW_TITLE, fps,
-                tClearAccum / n,
-                updateAvg,
-                sceneMs,
-                m_renderer.getTimeClearBinsMs(),
-                m_renderer.getTimeMeshMs(),
-                m_renderer.getTimeBinMs(),
-                m_renderer.getTimeRasterMs(),
-                m_timeParticlesMs,
-                tSdlAccum / n,
-                std::chrono::duration<float, std::milli>(tc3 - tc0).count());
+            float fps = fpsCount / fpsAccum;
+            std::snprintf(title, sizeof(title), "%s  |  %.0f FPS", WINDOW_TITLE, fps);
             SDL_SetWindowTitle(m_window, title);
             fpsAccum = fpsCount = 0;
-            tClearAccum = tUpdateAccum = tSdlAccum = 0;
         }
     }
 

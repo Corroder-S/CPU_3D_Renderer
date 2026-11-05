@@ -2,14 +2,14 @@
 // Created by leoam on 04/11/2026.
 //
 
-#include "UI_Canva.h"
+#include "UICanvas.h"
 
 #include <cstdint>
 
 #include "Asset/Font.h"
 #include "Asset/Texture.h"
 
-void UI_Canva::drawRectangle(int x, int y, int width, int height, std::uint32_t color, uint32_t *framebuffer)
+void UICanvas::drawRectangle(int x, int y, int width, int height, std::uint32_t color, uint32_t *framebuffer)
 
 {
     for (int i = 0; i < height; ++i) {
@@ -25,7 +25,7 @@ void UI_Canva::drawRectangle(int x, int y, int width, int height, std::uint32_t 
     }
 }
 
-void UI_Canva::drawImage(int x, int y, int width, int height, const Texture *texture, uint32_t *framebuffer)
+void UICanvas::drawImage(int x, int y, int width, int height, const Texture *texture, uint32_t *framebuffer)
 {
     if (!texture) return;
 
@@ -62,7 +62,7 @@ void UI_Canva::drawImage(int x, int y, int width, int height, const Texture *tex
 }
 
 
-void UI_Canva::drawText(
+void UICanvas::drawText(
     const Font& font,
     const std::string& text,
     uint32_t posX, uint32_t posY,

@@ -28,7 +28,7 @@ struct Canva {
     uint32_t zOrder;
 };
 
-class UI_Canva
+class UICanvas
 {
 public:
 

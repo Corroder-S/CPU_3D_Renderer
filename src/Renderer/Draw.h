@@ -19,10 +19,6 @@ static inline float edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-static inline float edge_dxdy(int a, int b)
-{
-    return (a - b);
-}
 
 inline Maths::Vec3f computeEdgeWeights(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c, Maths::Vec3f p) {
     return { edge(b, c, p), edge(c, a, p), edge(a, b, p) };
@@ -44,6 +40,7 @@ struct ScreenTriangle {
     Maths::Vec3f invW;
     Maths::Vec3f n0, n1, n2;
     Maths::Vec3f wp0, wp1, wp2;
+    Color c0, c1, c2;
 
     ShaderUniforms uniforms;
     float avgZ = 0.0f;
@@ -88,11 +85,14 @@ struct ScanlineState {
     __m256 uw, vw, iw;       // UVs + invW
     Maths::Vec3<__m256> normals;    // normal
     Maths::Vec3<__m256> wp;   // world pos
+    Maths::Vec3<__m256> colorRGB;   // vertex color RGB
+    __m256 colorA;                  // vertex color alpha
     __m256 xVec;
 
     // Pré-calculés pour le step
     __m256 dw0_8, dw1_8, dw2_8, dz_8, duw_8, dvw_8, diw_8;
-    Maths::Vec3<__m256> dn_8, dwp_8;
+    Maths::Vec3<__m256> dn_8, dwp_8, dcolor_8;
+    __m256 dcolorA_8;
 
     void stepX()
     {
@@ -112,6 +112,11 @@ struct ScanlineState {
         wp.y = _mm256_add_ps(wp.y, dwp_8.y);
         wp.z = _mm256_add_ps(wp.z, dwp_8.z);
 
+        colorRGB.x = _mm256_add_ps(colorRGB.x, dcolor_8.x);
+        colorRGB.y = _mm256_add_ps(colorRGB.y, dcolor_8.y);
+        colorRGB.z = _mm256_add_ps(colorRGB.z, dcolor_8.z);
+        colorA     = _mm256_add_ps(colorA, dcolorA_8);
+
         xVec = _mm256_add_ps(xVec, _mm256_set1_ps(8.0f));
     }
 
@@ -121,7 +126,8 @@ struct ScanlineState {
         return {
                 { _mm256_mul_ps(uw, inv_iw), _mm256_mul_ps(vw, inv_iw) },
                 normals,
-                { _mm256_mul_ps(wp.x, inv_iw), _mm256_mul_ps(wp.y, inv_iw), _mm256_mul_ps(wp.z, inv_iw) }
+                { _mm256_mul_ps(wp.x, inv_iw), _mm256_mul_ps(wp.y, inv_iw), _mm256_mul_ps(wp.z, inv_iw) },
+                { colorRGB.x, colorRGB.y, colorRGB.z, colorA }
         };
     }
 };
@@ -146,6 +152,8 @@ struct TriangleSetup
     Maths::Vec3f uw, vw, iw;
     InterpVec3  normal;
     InterpVec3  worldPos;
+    InterpVec3  colorRGB;   // vertex color RGB channels
+    Maths::Vec3f colorAlpha; // vertex color alpha: x=row, y=dx, z=dy
 
     ScanlineState initScanline() const // crée les __m256 via makeRow8
     {
@@ -163,6 +171,10 @@ struct TriangleSetup
         scan.wp.x = makeRow8(worldPos.row.x, worldPos.dx.x);
         scan.wp.y = makeRow8(worldPos.row.y, worldPos.dx.y);
         scan.wp.z = makeRow8(worldPos.row.z, worldPos.dx.z);
+        scan.colorRGB.x = makeRow8(colorRGB.row.x, colorRGB.dx.x);
+        scan.colorRGB.y = makeRow8(colorRGB.row.y, colorRGB.dx.y);
+        scan.colorRGB.z = makeRow8(colorRGB.row.z, colorRGB.dx.z);
+        scan.colorA     = makeRow8(colorAlpha.x,    colorAlpha.y);
 
         // Pré-calcul des steps pour stepX
         scan.dw0_8 = _mm256_set1_ps(edges.dx.x * 8.0f);
@@ -179,6 +191,10 @@ struct TriangleSetup
         scan.dwp_8 = { _mm256_set1_ps(worldPos.dx.x * 8.f),
                        _mm256_set1_ps(worldPos.dx.y * 8.f),
                        _mm256_set1_ps(worldPos.dx.z * 8.f) };
+        scan.dcolor_8  = { _mm256_set1_ps(colorRGB.dx.x * 8.f),
+                           _mm256_set1_ps(colorRGB.dx.y * 8.f),
+                           _mm256_set1_ps(colorRGB.dx.z * 8.f) };
+        scan.dcolorA_8 = _mm256_set1_ps(colorAlpha.y * 8.f);
         return scan;
     }
     void stepRow()
@@ -188,8 +204,10 @@ struct TriangleSetup
         uw.x += uw.z;
         vw.x += vw.z;
         iw.x += iw.z;
-        normal.row += normal.dy;  // avance tous les _row de dy
-        worldPos.row += worldPos.dy;  // avance tous les _row de dy
+        normal.row   += normal.dy;
+        worldPos.row += worldPos.dy;
+        colorRGB.row += colorRGB.dy;
+        colorAlpha.x += colorAlpha.z;
     }
 };
 
@@ -262,6 +280,14 @@ inline TriangleSetup setupTriangle(const ScreenTriangle& tri, const BBox2D& bbox
         dfw.dy.x * wpW0.z + dfw.dy.y * wpW1.z + dfw.dy.z * wpW2.z
     };
 
+    Maths::Vec3f cR = { tri.c0.r, tri.c1.r, tri.c2.r };
+    Maths::Vec3f cG = { tri.c0.g, tri.c1.g, tri.c2.g };
+    Maths::Vec3f cB = { tri.c0.b, tri.c1.b, tri.c2.b };
+    Maths::Vec3f cA = { tri.c0.a, tri.c1.a, tri.c2.a };
+    triangle.colorRGB.row = { Maths::Dot(fw_row, cR), Maths::Dot(fw_row, cG), Maths::Dot(fw_row, cB) };
+    triangle.colorRGB.dx  = { Maths::Dot(dfw.dx, cR), Maths::Dot(dfw.dx, cG), Maths::Dot(dfw.dx, cB) };
+    triangle.colorRGB.dy  = { Maths::Dot(dfw.dy, cR), Maths::Dot(dfw.dy, cG), Maths::Dot(dfw.dy, cB) };
+    triangle.colorAlpha   = { Maths::Dot(fw_row, cA), Maths::Dot(dfw.dx, cA), Maths::Dot(dfw.dy, cA) };
 
     return triangle;
 }
@@ -295,7 +321,7 @@ inline __m256 computeMask(const ScanlineState& scan, const RasterContext& ctx, i
     return finalMask;
 }
 
-inline void alphaBlend_8(const Color8& src, __m256 mask, uint32_t* framebuffer, int idx)
+inline void alphaBlend8(const Color8& src, __m256 mask, uint32_t* framebuffer, int idx)
 {
     // 2.17 — Alpha blending (src over): load existing framebuffer pixels,
                 //         blend dst = dst * (1 - alpha) + src * alpha per channel
@@ -327,7 +353,7 @@ inline void alphaBlend_8(const Color8& src, __m256 mask, uint32_t* framebuffer, 
     _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(mask), packed);
 }
 
-static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
+static inline void drawLine(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
 {
     int dx = abs(x1 - x0);
     int dy = -abs(y1 - y0);
@@ -338,7 +364,7 @@ static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std:
 
     while (true)
     {
-        put_pixel(x0, y0, color, framebuffer, RENDER_WIDTH, RENDER_HEIGHT);
+        putPixel(x0, y0, color, framebuffer, RENDER_WIDTH, RENDER_HEIGHT);
         if (x0 == x1 && y0 == y1) break;
         int e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }
@@ -358,7 +384,6 @@ static inline void drawTriangle(const ScreenTriangle& tri, const RasterContext& 
     TriangleSetup setup = setupTriangle(tri, bbox);     // ~1 ligne → tout le scalar setup
 
     int idx = bbox.minY * ctx.width + bbox.minX;
-    __m256 maxXV = _mm256_set1_ps((float)bbox.maxX + 0.5f);
 
     for (int y = bbox.minY; y <= bbox.maxY; y++)
     {
@@ -375,7 +400,7 @@ static inline void drawTriangle(const ScreenTriangle& tri, const RasterContext& 
 
                 FragmentInput_8 frag = scan.buildFragment();
                 Color8 color = evaluateBlinnPhong_8(frag, tri.uniforms, setup.camPos8);
-                alphaBlend_8(color, mask, ctx.framebuffer, idx);
+                alphaBlend8(color, mask, ctx.framebuffer, idx);
             }
 
             scan.stepX();
@@ -384,76 +409,5 @@ static inline void drawTriangle(const ScreenTriangle& tri, const RasterContext& 
 
         idx += ctx.width - covered;
         setup.stepRow();
-    }
-}
-
-
-
-static inline void drawText(
-    const Font& font,
-    const std::string& text,
-    uint32_t posX, uint32_t posY,
-    const Color& color,
-    uint32_t* framebuffer,
-    uint32_t fbWidth, uint32_t fbHeight)
-{
-    const auto& alphaAtlas = font.getAtlasAlpha();
-    uint32_t atlasW = font.getAtlasWidth();
-    uint32_t atlasH = font.getAtlasHeight();
-    if (alphaAtlas.empty()) return;
-
-    uint8_t cr = static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f));
-    uint8_t cg = static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f));
-    uint8_t cb = static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f));
-    uint8_t ca = static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f));
-
-    float curX = static_cast<float>(posX);
-    float curY = static_cast<float>(posY + font.getFontSize()); // Alignement sur la ligne de base
-
-    for (char c : text) {
-        if (c == '\n') {
-            curX = static_cast<float>(posX);
-            curY += font.getFontSize();
-            continue;
-        }
-
-        GlyphQuad q;
-        font.getBakedQuad(c, curX, curY, q);
-
-        uint32_t w = q.x1 - q.x0;
-        uint32_t h = q.y1 - q.y0;
-
-        for (uint32_t dy = 0; dy < h; ++dy) {
-            uint32_t screenY = q.y0 + dy;
-            if (screenY < 0 || screenY >= fbHeight) continue;
-
-            float v = q.t0 + (q.t1 - q.t0) * (static_cast<float>(dy) / h);
-            uint32_t texY = static_cast<uint32_t>(v * atlasH);
-
-            for (uint32_t dx = 0; dx < w; ++dx) {
-                uint32_t screenX = q.x0 + dx;
-                if (screenX < 0 || screenX >= fbWidth) continue;
-
-                float u = q.s0 + (q.s1 - q.s0) * (static_cast<float>(dx) / w);
-                uint32_t texX = static_cast<uint32_t>(u * atlasW);
-
-                uint8_t alpha = alphaAtlas[texY * atlasW + texX];
-                if (alpha == 0) continue;
-
-                float finalAlpha = (alpha / 255.0f) * (ca / 255.0f);
-                uint32_t dstIdx = screenY * fbWidth + screenX;
-                uint32_t dstColor = framebuffer[dstIdx];
-
-                uint8_t dr = (dstColor >> 16) & 0xFF;
-                uint8_t dg = (dstColor >> 8) & 0xFF;
-                uint8_t db = dstColor & 0xFF;
-
-                uint8_t outR = static_cast<uint8_t>(cr * finalAlpha + dr * (1.0f - finalAlpha));
-                uint8_t outG = static_cast<uint8_t>(cg * finalAlpha + dg * (1.0f - finalAlpha));
-                uint8_t outB = static_cast<uint8_t>(cb * finalAlpha + db * (1.0f - finalAlpha));
-
-                framebuffer[dstIdx] = (0xFFu << 24) | (outR << 16) | (outG << 8) | outB;
-            }
-        }
     }
 }

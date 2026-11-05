@@ -15,7 +15,7 @@ static inline uint32_t rgb(uint8_t r, uint8_t g, uint8_t b)
          |  (uint32_t)b;
 }
 
-static inline void put_pixel(int x, int y, uint32_t color, std::vector<uint32_t>& framebuffer, int width, int height)
+static inline void putPixel(int x, int y, uint32_t color, std::vector<uint32_t>& framebuffer, int width, int height)
 {
     if (x < 0 || x >= width || y < 0 || y >= height)
         return;

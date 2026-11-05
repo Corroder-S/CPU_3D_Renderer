@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scene/Camera.h"
+#include "Engine/Camera.h"
 #include <SDL3/SDL.h>
 #include <cmath>
 #include <numbers>

@@ -183,14 +183,10 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
             totalSpecular.b = _mm256_add_ps(totalSpecular.b, _mm256_mul_ps(_mm256_set1_ps(u.material->specular.b), sf));
         }
     }
-
-    __m256 one = _mm256_set1_ps(1.f), zero = _mm256_setzero_ps();
     Color8 finalColor;
     finalColor.r = _mm256_min_ps(_mm256_max_ps(_mm256_add_ps(_mm256_add_ps(ambient.r, totalDiffuse.r), totalSpecular.r), zero), one);
     finalColor.g = _mm256_min_ps(_mm256_max_ps(_mm256_add_ps(_mm256_add_ps(ambient.g, totalDiffuse.g), totalSpecular.g), zero), one);
     finalColor.b = _mm256_min_ps(_mm256_max_ps(_mm256_add_ps(_mm256_add_ps(ambient.b, totalDiffuse.b), totalSpecular.b), zero), one);
-    finalColor.a = _mm256_min_ps(_mm256_max_ps(_mm256_mul_ps(albedo.a, _mm256_set1_ps(u.material->dissolve)), zero), one);
-
     finalColor.a = _mm256_min_ps(_mm256_max_ps(_mm256_mul_ps(albedo.a, _mm256_set1_ps(u.material->dissolve)), zero), one);
     return finalColor;
 }
