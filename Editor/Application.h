@@ -13,7 +13,8 @@
 
 class Application : public Engine
 {
-    Mesh             m_mesh;
+    Mesh             m_mesh_1;
+    Mesh             m_mesh_2;
     Mesh             m_terrainMesh;
     Font             m_font;
     std::shared_ptr<Texture> m_texture;
@@ -25,7 +26,7 @@ class Application : public Engine
     std::unique_ptr<UISystem> m_uiSystem;
     ECS::Registry m_registry;
 
-    ECS::EntityID m_carTranspEntity;
+    ECS::EntityID m_DiamondEntity;
     ECS::EntityID m_FpsTextEntity;
 
 public:

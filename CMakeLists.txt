@@ -42,13 +42,16 @@ target_compile_options(cpu_renderer_sdl PRIVATE
 target_include_directories(cpu_renderer_sdl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_compile_definitions(cpu_renderer_sdl PRIVATE
-        ASSETS_PATH="${CMAKE_SOURCE_DIR}/Asset/"
+        ASSETS_PATH="Asset/"
 )
 
 add_custom_command(TARGET cpu_renderer_sdl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:SDL3::SDL3>
         $<TARGET_FILE_DIR:cpu_renderer_sdl>
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/Asset
+        $<TARGET_FILE_DIR:cpu_renderer_sdl>/Asset
 )
 
 

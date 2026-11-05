@@ -13,25 +13,37 @@ void Application::start()
         SDL_Log("Erreur lors du chargement de la police !");
     }
 
-    m_mesh = LoadMesh(ASSETS_PATH "Models/fantasy-diamond.obj");
+
+    m_mesh_1 = LoadMesh(ASSETS_PATH "Models/fantasy-diamond.obj");
+
+    m_mesh_2 = LoadMesh(ASSETS_PATH "Models/ball-bearing.obj");
+
+
+
 
     MaterialComponent diamondMatComp;
-    diamondMatComp.materials.reserve(m_mesh.submeshes.size());
-    for (const auto& submesh : m_mesh.submeshes) {
+    diamondMatComp.materials.reserve(m_mesh_1.submeshes.size());
+    for (const auto& submesh : m_mesh_1.submeshes) {
         diamondMatComp.materials.push_back(submesh.material);
     }
 
+    MaterialComponent ballMatComp;
+    ballMatComp.materials.reserve(m_mesh_2.submeshes.size());
+    for (const auto& submesh : m_mesh_2.submeshes) {
+        ballMatComp.materials.push_back(submesh.material);
+    }
+
     Transform transformOpaque;
-    transformOpaque.position = { -1.0f, 0.0f, -10.0f };
-	transformOpaque.scale = { 15.0f, 15.0f, 15.0f };
+    transformOpaque.position = { -1.0f, 0.0f, -20.0f };
+	transformOpaque.scale = { 30.0f, 30.0f, 30.0f };
     auto entityOpaque = m_registry.createEntity();
-    m_registry.addComponents(entityOpaque, transformOpaque, MeshComponent{ &m_mesh }, diamondMatComp);
+    m_registry.addComponents(entityOpaque, transformOpaque, MeshComponent{ &m_mesh_2 }, ballMatComp);
 
     Transform transformTransp;
-    transformTransp.position = { 0.0f, 0.0f, -5.0f };
-    transformTransp.scale = { 15.0f, 15.0f, 15.0f };
-    m_carTranspEntity = m_registry.createEntity();
-    m_registry.addComponents(m_carTranspEntity, transformTransp, MeshComponent{ &m_mesh }, diamondMatComp);
+    transformTransp.position = { 0.0f, 0.0f, -3.0f };
+    transformTransp.scale = { 30.0f, 30.0f, 30.0f };
+    m_DiamondEntity = m_registry.createEntity();
+    m_registry.addComponents(m_DiamondEntity, transformTransp, MeshComponent{ &m_mesh_1 }, diamondMatComp);
 
     TerrainParams terrainParams;
     terrainParams.width = 128;
@@ -133,7 +145,7 @@ void Application::update()
     if (!activeCamera) return;
     m_cameraController.update(*activeCamera, dt);
 
-    auto& transform = m_registry.getComponent<Transform>(m_carTranspEntity);
+    auto& transform = m_registry.getComponent<Transform>(m_DiamondEntity);
     transform.rotation.y += dt;
 
     m_rendererSystem->update(dt);
