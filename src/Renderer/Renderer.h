@@ -32,17 +32,8 @@ struct Tile {
     int x_min, y_min, x_max, y_max;
 };
 
-struct ScreenTriangle {
-    Maths::Vec3f a, b, c;
-    Maths::Vec2f uv0, uv1, uv2;
-    Maths::Vec3f invW;
-    Maths::Vec3f n0, n1, n2;
-    Maths::Vec3f wp0, wp1, wp2;
 
-    ShaderUniforms uniforms;
-    float avgZ = 0.0f;
-    bool writeDepth = true;
-};
+
 
 class Renderer
 {

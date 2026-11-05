@@ -11,6 +11,19 @@
 
 static constexpr float inv255 = 1.0f / 255.0f;
 
+static inline __m256i bilinearBlendChannel(
+    __m256i c00, __m256i c10, __m256i c01, __m256i c11,
+    __m256 w00, __m256 w10, __m256 w01, __m256 w11, int shift)
+{
+    auto ch = [shift](__m256i c) -> __m256 {
+        return _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c, shift), _mm256_set1_epi32(0xFF)));
+    };
+    return _mm256_cvtps_epi32(_mm256_add_ps(
+        _mm256_add_ps(_mm256_mul_ps(ch(c00), w00), _mm256_mul_ps(ch(c10), w10)),
+        _mm256_add_ps(_mm256_mul_ps(ch(c01), w01), _mm256_mul_ps(ch(c11), w11))
+    ));
+}
+
 struct Texture {
     int width = 0;
     int height = 0;
@@ -69,106 +82,48 @@ struct Texture {
     inline __m256i sampleBilinear_8(__m256 u, __m256 v) const {
         if (pixels.empty()) return _mm256_set1_epi32(0xFFFFFFFF);
 
-
-
+        // NaN guard + UV wrap [0, 1)
         u = _mm256_and_ps(u, _mm256_cmp_ps(u, u, _CMP_ORD_Q));
         v = _mm256_and_ps(v, _mm256_cmp_ps(v, v, _CMP_ORD_Q));
-
         u = _mm256_sub_ps(u, _mm256_floor_ps(u));
         v = _mm256_sub_ps(v, _mm256_floor_ps(v));
 
-        __m256 texX =  _mm256_mul_ps(u, _mm256_set1_ps(static_cast<float>(width - 1)));
-        __m256 texY = _mm256_mul_ps(_mm256_sub_ps(_mm256_set1_ps(1.0f), v), _mm256_set1_ps(static_cast<float>(height - 1)));
+        // UV → texel coords
+        __m256 texX = _mm256_mul_ps(u, _mm256_set1_ps((float)(width  - 1)));
+        __m256 texY = _mm256_mul_ps(_mm256_sub_ps(_mm256_set1_ps(1.f), v), _mm256_set1_ps((float)(height - 1)));
 
-        __m256 ftexX = _mm256_floor_ps(texX);
-        __m256 ftexY = _mm256_floor_ps(texY);
-
-        __m256i x0 =  _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(ftexX, _mm256_setzero_ps()), _mm256_set1_ps(static_cast<float>(width - 1))));
-        __m256i y0 =  _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(ftexY, _mm256_setzero_ps()), _mm256_set1_ps(static_cast<float>(height - 1))));
-
-        __m256i x1 = _mm256_min_epi32(_mm256_add_epi32(x0, _mm256_set1_epi32(1)), _mm256_set1_epi32(width - 1));
+        // Neighbor indices clamped to texture bounds
+        __m256i x0 = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(_mm256_floor_ps(texX), _mm256_setzero_ps()), _mm256_set1_ps((float)(width  - 1))));
+        __m256i y0 = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(_mm256_floor_ps(texY), _mm256_setzero_ps()), _mm256_set1_ps((float)(height - 1))));
+        __m256i x1 = _mm256_min_epi32(_mm256_add_epi32(x0, _mm256_set1_epi32(1)), _mm256_set1_epi32(width  - 1));
         __m256i y1 = _mm256_min_epi32(_mm256_add_epi32(y0, _mm256_set1_epi32(1)), _mm256_set1_epi32(height - 1));
 
-        __m256 fx = _mm256_sub_ps(texX, _mm256_cvtepi32_ps(x0));
-        __m256 fy = _mm256_sub_ps(texY, _mm256_cvtepi32_ps(y0));
+        // Bilinear weights
+        __m256 fx  = _mm256_sub_ps(texX, _mm256_cvtepi32_ps(x0));
+        __m256 fy  = _mm256_sub_ps(texY, _mm256_cvtepi32_ps(y0));
+        __m256 ifx = _mm256_sub_ps(_mm256_set1_ps(1.f), fx);
+        __m256 ify = _mm256_sub_ps(_mm256_set1_ps(1.f), fy);
+        __m256 w00 = _mm256_mul_ps(ifx, ify), w10 = _mm256_mul_ps(fx, ify);
+        __m256 w01 = _mm256_mul_ps(ifx, fy),  w11 = _mm256_mul_ps(fx, fy);
 
-        __m256 w00 = _mm256_mul_ps(_mm256_sub_ps(_mm256_set1_ps(1.0f), fx), _mm256_sub_ps(_mm256_set1_ps(1.0f), fy));
-        __m256 w10 = _mm256_mul_ps(fx, _mm256_sub_ps(_mm256_set1_ps(1.0f), fy));
-        __m256 w01 = _mm256_mul_ps(_mm256_sub_ps(_mm256_set1_ps(1), fx), fy);
-        __m256 w11 = _mm256_mul_ps(fx, fy);
+        // Gather 4 neighboring texels
+        const int*  tex    = (const int*)pixels.data();
+        __m256i     stride = _mm256_set1_epi32(width);
+        __m256i c00 = _mm256_i32gather_epi32(tex, _mm256_add_epi32(_mm256_mullo_epi32(y0, stride), x0), 4);
+        __m256i c10 = _mm256_i32gather_epi32(tex, _mm256_add_epi32(_mm256_mullo_epi32(y0, stride), x1), 4);
+        __m256i c01 = _mm256_i32gather_epi32(tex, _mm256_add_epi32(_mm256_mullo_epi32(y1, stride), x0), 4);
+        __m256i c11 = _mm256_i32gather_epi32(tex, _mm256_add_epi32(_mm256_mullo_epi32(y1, stride), x1), 4);
 
+        // Blend each channel and pack ARGB
+        __m256i r = bilinearBlendChannel(c00, c10, c01, c11, w00, w10, w01, w11, 16);
+        __m256i g = bilinearBlendChannel(c00, c10, c01, c11, w00, w10, w01, w11,  8);
+        __m256i b = bilinearBlendChannel(c00, c10, c01, c11, w00, w10, w01, w11,  0);
+        __m256i a = bilinearBlendChannel(c00, c10, c01, c11, w00, w10, w01, w11, 24);
 
-        const uint32_t* texPixels = pixels.data();
-
-        __m256i idx00 = _mm256_add_epi32(_mm256_mullo_epi32(y0, _mm256_set1_epi32(width)), x0);
-        __m256i idx10 = _mm256_add_epi32(_mm256_mullo_epi32(y0, _mm256_set1_epi32(width)), x1);
-        __m256i idx01 = _mm256_add_epi32(_mm256_mullo_epi32(y1, _mm256_set1_epi32(width)), x0);
-        __m256i idx11 = _mm256_add_epi32(_mm256_mullo_epi32(y1, _mm256_set1_epi32(width)), x1);
-
-        __m256i c00 = _mm256_i32gather_epi32((const int*)texPixels, idx00,4);
-        __m256i c10 = _mm256_i32gather_epi32((const int*)texPixels, idx10,4);
-        __m256i c01 = _mm256_i32gather_epi32((const int*)texPixels, idx01,4);
-        __m256i c11 = _mm256_i32gather_epi32((const int*)texPixels, idx11,4);
-
-
-        __m256 a00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 24), _mm256_set1_epi32(0xFF)));
-        __m256 a10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 24), _mm256_set1_epi32(0xFF)));
-        __m256 a01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 24), _mm256_set1_epi32(0xFF)));
-        __m256 a11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 24), _mm256_set1_epi32(0xFF)));
-
-        __m256 r00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 16), _mm256_set1_epi32(0xFF)));
-        __m256 r10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 16), _mm256_set1_epi32(0xFF)));
-        __m256 r01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 16), _mm256_set1_epi32(0xFF)));
-        __m256 r11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 16), _mm256_set1_epi32(0xFF)));
-
-        __m256 g00 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c00, 8), _mm256_set1_epi32(0xFF)));
-        __m256 g10 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c10, 8), _mm256_set1_epi32(0xFF)));
-        __m256 g01 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c01, 8), _mm256_set1_epi32(0xFF)));
-        __m256 g11 = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(c11, 8), _mm256_set1_epi32(0xFF)));
-
-        __m256 b00 = _mm256_cvtepi32_ps(_mm256_and_si256(c00, _mm256_set1_epi32(0xFF)));
-        __m256 b10 = _mm256_cvtepi32_ps(_mm256_and_si256(c10, _mm256_set1_epi32(0xFF)));
-        __m256 b01 = _mm256_cvtepi32_ps(_mm256_and_si256(c01, _mm256_set1_epi32(0xFF)));
-        __m256 b11 = _mm256_cvtepi32_ps(_mm256_and_si256(c11, _mm256_set1_epi32(0xFF)));
-
-
-
-        __m256 a_c00 =  _mm256_mul_ps(a00, w00);
-        __m256 a_c10 =  _mm256_mul_ps(a10, w10);
-        __m256 a_c01 =  _mm256_mul_ps(a01, w01);
-        __m256 a_c11 =  _mm256_mul_ps(a11, w11);
-
-        __m256 r_c00 =  _mm256_mul_ps(r00, w00);
-        __m256 r_c10 =  _mm256_mul_ps(r10, w10);
-        __m256 r_c01 =  _mm256_mul_ps(r01, w01);
-        __m256 r_c11 =  _mm256_mul_ps(r11, w11);
-
-        __m256 g_c00 =  _mm256_mul_ps(g00, w00);
-        __m256 g_c10 =  _mm256_mul_ps(g10, w10);
-        __m256 g_c01 =  _mm256_mul_ps(g01, w01);
-        __m256 g_c11 =  _mm256_mul_ps(g11, w11);
-
-        __m256 b_c00 =  _mm256_mul_ps(b00, w00);
-        __m256 b_c10 =  _mm256_mul_ps(b10, w10);
-        __m256 b_c01 =  _mm256_mul_ps(b01, w01);
-        __m256 b_c11 =  _mm256_mul_ps(b11, w11);
-
-
-        __m256i r = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(r_c00, r_c10), _mm256_add_ps(r_c01, r_c11)));
-        __m256i g = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(g_c00, g_c10), _mm256_add_ps(g_c01, g_c11)));
-        __m256i b = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(b_c00, b_c10), _mm256_add_ps(b_c01, b_c11)));
-        __m256i a = _mm256_cvtps_epi32(_mm256_add_ps(_mm256_add_ps(a_c00, a_c10), _mm256_add_ps(a_c01, a_c11)));
-
-
-        __m256i aInt = _mm256_slli_epi32( a,24);
-        __m256i rInt = _mm256_slli_epi32( r,16);
-        __m256i gInt = _mm256_slli_epi32( g,8);
-
-
-
-        __m256i result = _mm256_or_si256(_mm256_or_si256(aInt, rInt), _mm256_or_si256(gInt, b));
-
-        return result;
+        return _mm256_or_si256(
+            _mm256_or_si256(_mm256_slli_epi32(a, 24), _mm256_slli_epi32(r, 16)),
+            _mm256_or_si256(_mm256_slli_epi32(g,  8), b)
+        );
     }
 };
 

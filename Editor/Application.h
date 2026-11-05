@@ -6,7 +6,6 @@
 #include "ECS/headers/registry.h"
 #include "Engine/Engine.h"
 #include "Engine/CameraController.h"
-#include "Scene/RenderObject.h"
 #include "SDL3/SDL_timer.h"
 #include "System/RendererSystem.h"
 #include "System/UISystem.h"

@@ -10,10 +10,10 @@
 bool LoadObj(const char* path, Mesh& outMesh)
 {
     MappedFile file(path);
-    if (!file.IsOpen()) return false;
+    if (!file.isOpen()) return false;
 
-    const char* data = file.Data();
-    const char* end = data + file.Size();
+    const char* data = file.data();
+    const char* end = data + file.size();
 
     std::unordered_map<std::string, Material> loadedMaterials;
 
@@ -66,7 +66,7 @@ bool LoadObj(const char* path, Mesh& outMesh)
             int safeT2 = (t2 < 0 || t2 >= (int)outMesh.uvs.size()) ? 0 : t2;
             int safeT3 = (t3 < 0 || t3 >= (int)outMesh.uvs.size()) ? 0 : t3;
 
-            currentSubMesh.faces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
+            currentSubMesh.faces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
         }
         else if (std::strncmp(data, "mtllib ", 7) == 0)
         {

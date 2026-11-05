@@ -16,7 +16,7 @@ struct Face {
 struct SubMesh {
     std::string materialName;
     Material material;
-    std::vector<face> faces;
+    std::vector<Face> faces;
     std::vector<Maths::Vec3f> cornerNormals;
 };
 

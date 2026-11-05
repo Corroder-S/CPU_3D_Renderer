@@ -402,17 +402,8 @@ void Renderer::workerLoop(Worker& w)
             auto& tile = m_tiles[tileIdx];
             for (auto& tri : m_tileBins[tileIdx])
             {
-                drawTriangle(
-                    tri.a, tri.b, tri.c,
-                    tri.uv0, tri.uv1, tri.uv2,
-                    tri.invW,
-                    tri.n0, tri.n1, tri.n2,
-                    tri.wp0, tri.wp1, tri.wp2,
-                    m_framebuffer, m_zBuffer,
-                    tri.uniforms,
-                    { tile.x_min, tile.y_min },
-                    { tile.x_max, tile.y_max }, m_width,
-                    tri.writeDepth
+                drawTriangle( tri,
+                    { m_framebuffer, m_zBuffer.data(), m_width, m_height, {tile.x_min, tile.y_min}, {tile.x_max, tile.y_max} }
                 );
             }
         }

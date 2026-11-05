@@ -14,6 +14,319 @@
 
 
 
+static inline float edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
+{
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+static inline float edge_dxdy(int a, int b)
+{
+    return (a - b);
+}
+
+inline Maths::Vec3f computeEdgeWeights(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c, Maths::Vec3f p) {
+    return { edge(b, c, p), edge(c, a, p), edge(a, b, p) };
+}
+
+struct EdgeGradients { Maths::Vec3f dx, dy; };
+inline EdgeGradients computeEdgeGradients(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c) {
+    return {
+                { b.y - c.y, c.y - a.y, a.y - b.y },   // dx
+                { c.x - b.x, a.x - c.x, b.x - a.x }    // dy
+    };
+}
+
+
+
+struct ScreenTriangle {
+    Maths::Vec3f a, b, c;
+    Maths::Vec2f uv0, uv1, uv2;
+    Maths::Vec3f invW;
+    Maths::Vec3f n0, n1, n2;
+    Maths::Vec3f wp0, wp1, wp2;
+
+    ShaderUniforms uniforms;
+    float avgZ = 0.0f;
+    bool writeDepth = true;
+};
+
+
+struct RasterContext {
+    uint32_t* framebuffer;
+    float*    zbuffer;
+    uint32_t       width;
+    uint32_t       height;
+    Maths::Vec2i     renderMin;
+    Maths::Vec2i     renderMax;
+};
+
+struct InterpVec3 {
+    Maths::Vec3f row;  // { nx_row, ny_row, nz_row }
+    Maths::Vec3f dx;   // { dnx_dx, dny_dx, dnz_dx }
+    Maths::Vec3f dy;   // { dnx_dy, dny_dy, dnz_dy }
+};
+
+
+struct BBox2D {
+    int minX, minY, maxX, maxY;
+
+    bool empty() const { return minX > maxX || minY > maxY; }
+
+    static BBox2D fromTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c, Maths::Vec2i clipMin, Maths::Vec2i clipMax) {
+        return {
+            std::max(clipMin.x, std::min({(int)a.x, (int)b.x, (int)c.x})),
+            std::max(clipMin.y, std::min({(int)a.y, (int)b.y, (int)c.y})),
+            std::min(clipMax.x - 1, std::max({(int)a.x, (int)b.x, (int)c.x})),
+            std::min(clipMax.y - 1, std::max({(int)a.y, (int)b.y, (int)c.y}))
+        };
+    }
+};
+
+struct ScanlineState {
+    __m256 w0, w1, w2;       // edge weights
+    __m256 z;                 // depth
+    __m256 uw, vw, iw;       // UVs + invW
+    Maths::Vec3<__m256> normals;    // normal
+    Maths::Vec3<__m256> wp;   // world pos
+    __m256 xVec;
+
+    // Pré-calculés pour le step
+    __m256 dw0_8, dw1_8, dw2_8, dz_8, duw_8, dvw_8, diw_8;
+    Maths::Vec3<__m256> dn_8, dwp_8;
+
+    void stepX()
+    {
+        w0 = _mm256_add_ps(w0, dw0_8);
+        w1 = _mm256_add_ps(w1, dw1_8);
+        w2 = _mm256_add_ps(w2, dw2_8);
+        z = _mm256_add_ps(z, dz_8);
+        uw = _mm256_add_ps(uw, duw_8);
+        vw = _mm256_add_ps(vw, dvw_8);
+        iw = _mm256_add_ps(iw, diw_8);
+
+        normals.x = _mm256_add_ps(normals.x , dn_8.x );
+        normals.y = _mm256_add_ps(normals.y , dn_8.y );
+        normals.z = _mm256_add_ps(normals.z , dn_8.z );
+
+        wp.x = _mm256_add_ps(wp.x, dwp_8.x);
+        wp.y = _mm256_add_ps(wp.y, dwp_8.y);
+        wp.z = _mm256_add_ps(wp.z, dwp_8.z);
+
+        xVec = _mm256_add_ps(xVec, _mm256_set1_ps(8.0f));
+    }
+
+    FragmentInput_8 buildFragment() const  // perspective-correct + build frag
+    {
+        __m256 inv_iw = _mm256_rcp_ps(iw);
+        return {
+                { _mm256_mul_ps(uw, inv_iw), _mm256_mul_ps(vw, inv_iw) },
+                normals,
+                { _mm256_mul_ps(wp.x, inv_iw), _mm256_mul_ps(wp.y, inv_iw), _mm256_mul_ps(wp.z, inv_iw) }
+        };
+    }
+};
+
+
+inline __m256 makeRow8(float base, float step) {
+    // [base, base+step, base+2*step, ..., base+7*step]
+    return _mm256_fmadd_ps(
+        _mm256_set_ps(7.f, 6.f, 5.f, 4.f, 3.f, 2.f, 1.f, 0.f),
+        _mm256_set1_ps(step),
+        _mm256_set1_ps(base)
+    );
+}
+
+struct TriangleSetup
+{
+    Maths::Vec3<__m256> camPos8;
+    // Edge weights + gradients (for step and coverage test)
+    InterpVec3 edges;  // .row = w_row, .dx = dw.dx, .dy = dw.dy (non normalisés)
+
+    Maths::Vec3f depthData; // z_row, dz_dx, dz_dy
+    Maths::Vec3f uw, vw, iw;
+    InterpVec3  normal;
+    InterpVec3  worldPos;
+
+    ScanlineState initScanline() const // crée les __m256 via makeRow8
+    {
+        ScanlineState scan;
+        scan.w0 = makeRow8(edges.row.x, edges.dx.x);
+        scan.w1 = makeRow8(edges.row.y, edges.dx.y);
+        scan.w2 = makeRow8(edges.row.z, edges.dx.z);
+        scan.z = makeRow8(depthData.x, depthData.y);
+        scan.uw = makeRow8(uw.x, uw.y);
+        scan.vw = makeRow8(vw.x, vw.y);
+        scan.iw = makeRow8(iw.x, iw.y);
+        scan.normals.x = makeRow8(normal.row.x, normal.dx.x);
+        scan.normals.y = makeRow8(normal.row.y, normal.dx.y);
+        scan.normals.z = makeRow8(normal.row.z, normal.dx.z);
+        scan.wp.x = makeRow8(worldPos.row.x, worldPos.dx.x);
+        scan.wp.y = makeRow8(worldPos.row.y, worldPos.dx.y);
+        scan.wp.z = makeRow8(worldPos.row.z, worldPos.dx.z);
+
+        // Pré-calcul des steps pour stepX
+        scan.dw0_8 = _mm256_set1_ps(edges.dx.x * 8.0f);
+        scan.dw1_8 = _mm256_set1_ps(edges.dx.y * 8.0f);
+        scan.dw2_8 = _mm256_set1_ps(edges.dx.z * 8.0f);
+        scan.dz_8  = _mm256_set1_ps(depthData.y * 8.0f);
+        scan.duw_8 = _mm256_set1_ps(uw.y * 8.0f);
+        scan.dvw_8 = _mm256_set1_ps(vw.y * 8.0f);
+        scan.diw_8 = _mm256_set1_ps(iw.y * 8.0f);
+
+        scan.dn_8  = { _mm256_set1_ps(normal.dx.x * 8.f),
+               _mm256_set1_ps(normal.dx.y * 8.f),
+               _mm256_set1_ps(normal.dx.z * 8.f) };
+        scan.dwp_8 = { _mm256_set1_ps(worldPos.dx.x * 8.f),
+                       _mm256_set1_ps(worldPos.dx.y * 8.f),
+                       _mm256_set1_ps(worldPos.dx.z * 8.f) };
+        return scan;
+    }
+    void stepRow()
+    {
+        edges.row += edges.dy;  // avance tous les _row de dy
+        depthData.x += depthData.z;
+        uw.x += uw.z;
+        vw.x += vw.z;
+        iw.x += iw.z;
+        normal.row += normal.dy;  // avance tous les _row de dy
+        worldPos.row += worldPos.dy;  // avance tous les _row de dy
+    }
+};
+
+inline TriangleSetup setupTriangle(const ScreenTriangle& tri, const BBox2D& bbox)
+{
+    TriangleSetup triangle;
+
+    triangle.camPos8 = { _mm256_set1_ps(tri.uniforms.cameraPos.x), _mm256_set1_ps(tri.uniforms.cameraPos.y), _mm256_set1_ps(tri.uniforms.cameraPos.z) };
+    EdgeGradients dw = computeEdgeGradients(tri.a, tri.b, tri.c);
+    triangle.edges.dx = dw.dx;
+    triangle.edges.dy = dw.dy;
+    triangle.edges.row = { computeEdgeWeights(tri.a, tri.b, tri.c, { (float)bbox.minX + 0.5f, (float)bbox.minY + 0.5f, 0.0f }) };
+    Maths::Vec3f w_row = triangle.edges.row;
+    float area = w_row.x + w_row.y + w_row.z;
+    float invArea = 1.0f / area;
+    Maths::Vec3f fw_row = w_row * invArea;
+    Maths::Vec3f zVerts = { tri.a.z, tri.b.z, tri.c.z };
+
+    EdgeGradients dfw = { dw.dx * invArea, dw.dy * invArea };
+
+    triangle.depthData.x =  Maths::Dot(fw_row, zVerts);
+    triangle.depthData.y =  Maths::Dot(dfw.dx, zVerts);
+    triangle.depthData.z =  Maths::Dot(dfw.dy, zVerts);
+
+    float iw_row = Maths::Dot(fw_row, tri.invW);
+    Maths::Vec3f uW = { tri.uv0.x * tri.invW.x, tri.uv1.x * tri.invW.y, tri.uv2.x * tri.invW.z };
+    Maths::Vec3f vW = { tri.uv0.y * tri.invW.x, tri.uv1.y * tri.invW.y, tri.uv2.y * tri.invW.z };
+    float uw_row = Maths::Dot(fw_row, uW);
+    float vw_row = Maths::Dot(fw_row, vW);
+    Maths::Vec2f duw = { Maths::Dot(dfw.dx, uW), Maths::Dot(dfw.dy, uW) };
+    Maths::Vec2f dvw = { Maths::Dot(dfw.dx, vW), Maths::Dot(dfw.dy, vW) };
+    Maths::Vec2f diw = { Maths::Dot(dfw.dx, tri.invW), Maths::Dot(dfw.dy, tri.invW) };
+    triangle.uw = { uw_row, duw.x, duw.y };
+    triangle.vw = { vw_row, dvw.x, dvw.y };
+    triangle.iw = { iw_row, diw.x, diw.y };
+
+    triangle.normal.row = {
+        Maths::Dot(fw_row, { tri.n0.x, tri.n1.x, tri.n2.x }),
+        Maths::Dot(fw_row, { tri.n0.y, tri.n1.y, tri.n2.y }),
+        Maths::Dot(fw_row, { tri.n0.z, tri.n1.z, tri.n2.z })
+    };
+    triangle.normal.dx = {
+        Maths::Dot(dfw.dx, { tri.n0.x, tri.n1.x, tri.n2.x }),
+        Maths::Dot(dfw.dx, { tri.n0.y, tri.n1.y, tri.n2.y }),
+        Maths::Dot(dfw.dx, { tri.n0.z, tri.n1.z, tri.n2.z })
+    };
+    triangle.normal.dy = {
+        Maths::Dot(dfw.dy, { tri.n0.x, tri.n1.x, tri.n2.x }),
+        Maths::Dot(dfw.dy, { tri.n0.y, tri.n1.y, tri.n2.y }),
+        Maths::Dot(dfw.dy, { tri.n0.z, tri.n1.z, tri.n2.z })
+    };
+
+    Maths::Vec3f wpW0 = tri.wp0 * tri.invW.x;
+    Maths::Vec3f wpW1 = tri.wp1 * tri.invW.y;
+    Maths::Vec3f wpW2 = tri.wp2 * tri.invW.z;
+
+    triangle.worldPos.row = {
+        fw_row.x * wpW0.x + fw_row.y * wpW1.x + fw_row.z * wpW2.x,
+        fw_row.x * wpW0.y + fw_row.y * wpW1.y + fw_row.z * wpW2.y,
+        fw_row.x * wpW0.z + fw_row.y * wpW1.z + fw_row.z * wpW2.z
+    };
+    triangle.worldPos.dx = {
+        dfw.dx.x * wpW0.x + dfw.dx.y * wpW1.x + dfw.dx.z * wpW2.x,
+        dfw.dx.x * wpW0.y + dfw.dx.y * wpW1.y + dfw.dx.z * wpW2.y,
+        dfw.dx.x * wpW0.z + dfw.dx.y * wpW1.z + dfw.dx.z * wpW2.z
+    };
+    triangle.worldPos.dy = {
+        dfw.dy.x * wpW0.x + dfw.dy.y * wpW1.x + dfw.dy.z * wpW2.x,
+        dfw.dy.x * wpW0.y + dfw.dy.y * wpW1.y + dfw.dy.z * wpW2.y,
+        dfw.dy.x * wpW0.z + dfw.dy.y * wpW1.z + dfw.dy.z * wpW2.z
+    };
+
+
+    return triangle;
+}
+
+
+inline __m256 computeMask(const ScanlineState& scan, const RasterContext& ctx, int idx, int remaining)
+{
+    __m256 zero  = _mm256_setzero_ps();
+    __m256 mask0 = _mm256_cmp_ps(scan.w0, zero, _CMP_GE_OS);
+    __m256 mask1 = _mm256_cmp_ps(scan.w1, zero, _CMP_GE_OS);
+    __m256 mask2 = _mm256_cmp_ps(scan.w2, zero, _CMP_GE_OS);
+    __m256 triMask = _mm256_and_ps(_mm256_and_ps(mask0, mask1), mask2);
+
+    // 2.8 — Depth test: pixel passes if its z <= current z-buffer value
+    //if the pixel is closer to the camera than the current depth buffer value, draw it, otherwise discard it
+    __m256 zbufferVec = _mm256_loadu_ps(&ctx.zbuffer[idx]);
+    __m256 depthMask = _mm256_cmp_ps(scan.z, zbufferVec, _CMP_LE_OS);
+
+
+    __m256 finalMask = _mm256_and_ps(triMask, depthMask);
+
+
+    // 2.11 — End-of-row mask: disables lanes beyond remaining pixels
+    if (remaining < 8) {
+        __m256i boundsMask = _mm256_cmpgt_epi32(
+            _mm256_set1_epi32(remaining),
+            _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0)
+        );
+        finalMask = _mm256_and_ps(finalMask, _mm256_castsi256_ps(boundsMask));
+    }
+    return finalMask;
+}
+
+inline void alphaBlend_8(const Color8& src, __m256 mask, uint32_t* framebuffer, int idx)
+{
+    // 2.17 — Alpha blending (src over): load existing framebuffer pixels,
+                //         blend dst = dst * (1 - alpha) + src * alpha per channel
+    __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(mask));
+
+    __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
+    __m256 dstG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 8), _mm256_set1_epi32(0xFF)));
+    __m256 dstB = _mm256_cvtepi32_ps(_mm256_and_si256(dst, _mm256_set1_epi32(0xFF)));
+
+    dstR = _mm256_mul_ps(dstR, _mm256_sub_ps(_mm256_set1_ps(1.0f), src.a));
+    dstG = _mm256_mul_ps(dstG, _mm256_sub_ps(_mm256_set1_ps(1.0f), src.a));
+    dstB = _mm256_mul_ps(dstB, _mm256_sub_ps(_mm256_set1_ps(1.0f), src.a));
+
+    dstR = _mm256_add_ps(dstR, _mm256_mul_ps(_mm256_mul_ps(src.r, _mm256_set1_ps(255.0f)), src.a));
+    dstG = _mm256_add_ps(dstG, _mm256_mul_ps(_mm256_mul_ps(src.g, _mm256_set1_ps(255.0f)), src.a));
+    dstB = _mm256_add_ps(dstB, _mm256_mul_ps(_mm256_mul_ps(src.b, _mm256_set1_ps(255.0f)), src.a));
+
+                // 2.18 — Pack ARGB channels into uint32 and masked write to framebuffer
+    __m256i ri = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstR, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+    __m256i gi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstG, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+    __m256i bi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstB, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+    __m256i ai = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(_mm256_mul_ps(src.a, _mm256_set1_ps(255.0f)), _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
+
+    __m256i packed = _mm256_or_si256(
+    _mm256_or_si256(_mm256_slli_epi32(ai, 24), _mm256_slli_epi32(ri, 16)),
+    _mm256_or_si256(_mm256_slli_epi32(gi, 8), bi)
+    );
+
+    _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(mask), packed);
+}
+
 static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
 {
     int dx =  abs(x1 - x0);
@@ -33,284 +346,47 @@ static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std:
     }
 }
 
-static inline float edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
+
+
+
+
+static inline void drawTriangle(const ScreenTriangle& tri, const RasterContext& ctx)
 {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-}
+    BBox2D bbox = BBox2D::fromTriangle(tri.a, tri.b, tri.c, ctx.renderMin, ctx.renderMax);
+    int covered = ((bbox.maxX - bbox.minX) / 8 + 1) * 8;
 
-static inline float edge_dxdy(int a, int b)
-{
-    return (a - b);
-}
+    TriangleSetup setup = setupTriangle(tri, bbox);     // ~1 ligne → tout le scalar setup
 
+    int idx = bbox.minY * ctx.width + bbox.minX;
+    __m256 maxXV = _mm256_set1_ps((float)bbox.maxX + 0.5f);
 
-static inline void drawTriangle(
-    Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c,
-    Maths::Vec2f uvx, Maths::Vec2f uvy, Maths::Vec2f uvz,
-    Maths::Vec3f invW,
-    Maths::Vec3f wn0, Maths::Vec3f wn1, Maths::Vec3f wn2,
-    Maths::Vec3f wp0, Maths::Vec3f wp1, Maths::Vec3f wp2,
-    uint32_t* framebuffer,
-    std::vector<float>& zbuffer,
-    const ShaderUniforms& uniforms,
-    Maths::Vec2i renderMin, Maths::Vec2i renderMax,
-    int fbWidth,
-    bool writeDepth = true)
-{
-
-    // ===== PHASE 1 : Scalar Setup =====
-    // 1.1 Setup camera Position into __m256 to use in SIMD shader evaluation
-    // Used Later in the blinn-phong shader evaluation
-
-
-    Maths::Vec3<__m256> C8 = { _mm256_set1_ps(uniforms.cameraPos.x), _mm256_set1_ps(uniforms.cameraPos.y), _mm256_set1_ps(uniforms.cameraPos.z) };
-
-
-    // 1.2 Compute bounding box of the triangle in screen space
-    int minX = std::max(renderMin.x, std::min({ (int)a.x, (int)b.x, (int)c.x }));
-    int maxX = std::min(renderMax.x - 1, std::max({ (int)a.x, (int)b.x, (int)c.x }));
-    int minY = std::max(renderMin.y, std::min({ (int)a.y, (int)b.y, (int)c.y }));
-    int maxY = std::min(renderMax.y - 1, std::max({ (int)a.y, (int)b.y, (int)c.y }));
-
-    if (minX > maxX || minY > maxY) return;
-
-    Maths::Vec3f minPos = { (float)minX + 0.5f, (float)minY + 0.5f, 0.0f };
-
-
-
-    //1.3 Initial edges functions to the triangle edge
-    ////  w0/w1/w2 =  barycentral weight of the first pixel
-    int covered = ((maxX - minX) / 8 + 1) * 8;
-
-    float w0_row = edge(b, c, minPos);
-    float w1_row = edge(c, a, minPos);
-    float w2_row = edge(a, b, minPos);
-
-    float area = w0_row + w1_row + w2_row;
-    float invArea = 1.0f / area;
-
-
-    //1.4 Compute the gradient of the edge functions to compute the barycentric coordinates of each pixel in the triangle
-    float dw0_dx = edge_dxdy(b.y, c.y);
-    float dw0_dy = edge_dxdy(c.x, b.x);
-    float dw1_dx = edge_dxdy(c.y, a.y);
-    float dw1_dy = edge_dxdy(a.x, c.x);
-    float dw2_dx = edge_dxdy(a.y, b.y);
-    float dw2_dy = edge_dxdy(b.x, a.x);
-
-    //1.5 Normalized Gradients by the area (fw -w * invArea)
-    float dfw0_dx = dw0_dx * invArea, dfw0_dy = dw0_dy * invArea;
-    float dfw1_dx = dw1_dx * invArea, dfw1_dy = dw1_dy * invArea;
-    float dfw2_dx = dw2_dx * invArea, dfw2_dy = dw2_dy * invArea;
-
-    //1.6 Compute the gradient of the depth to compute the depth of each pixel in the triangle
-    float dz_dx = dfw0_dx * a.z + dfw1_dx * b.z + dfw2_dx * c.z;
-    float dz_dy = dfw0_dy * a.z + dfw1_dy * b.z + dfw2_dy * c.z;
-
-    float fw0_row = w0_row * invArea;
-    float fw1_row = w1_row * invArea;
-    float fw2_row = w2_row * invArea;
-
-    //1.7 Interpolation of  UVs and 1/W
-    float uw_row = fw0_row * uvx.x * invW.x + fw1_row * uvy.x * invW.y + fw2_row * uvz.x * invW.z;
-    float vw_row = fw0_row * uvx.y * invW.x + fw1_row * uvy.y * invW.y + fw2_row * uvz.y * invW.z;
-    float iw_row = fw0_row * invW.x + fw1_row * invW.y + fw2_row * invW.z;
-
-    float duw_dx = dfw0_dx * uvx.x * invW.x + dfw1_dx * uvy.x * invW.y + dfw2_dx * uvz.x * invW.z;
-    float dvw_dx = dfw0_dx * uvx.y * invW.x + dfw1_dx * uvy.y * invW.y + dfw2_dx * uvz.y * invW.z;
-    float diw_dx = dfw0_dx * invW.x + dfw1_dx * invW.y + dfw2_dx * invW.z;
-
-    float duw_dy = dfw0_dy * uvx.x * invW.x + dfw1_dy * uvy.x * invW.y + dfw2_dy * uvz.x * invW.z;
-    float dvw_dy = dfw0_dy * uvx.y * invW.x + dfw1_dy * uvy.y * invW.y + dfw2_dy * uvz.y * invW.z;
-    float diw_dy = dfw0_dy * invW.x + dfw1_dy * invW.y + dfw2_dy * invW.z;
-
-    //1.8 Interpolation of Depth
-    float z_row = fw0_row * a.z + fw1_row * b.z + fw2_row * c.z;
-
-    //1.9 Interpolation of Normals
-    float dnx_dx = dfw0_dx * wn0.x + dfw1_dx * wn1.x + dfw2_dx * wn2.x;
-    float dny_dx = dfw0_dx * wn0.y + dfw1_dx * wn1.y + dfw2_dx * wn2.y;
-    float dnz_dx = dfw0_dx * wn0.z + dfw1_dx * wn1.z + dfw2_dx * wn2.z;
-    float dnx_dy = dfw0_dy * wn0.x + dfw1_dy * wn1.x + dfw2_dy * wn2.x;
-    float dny_dy = dfw0_dy * wn0.y + dfw1_dy * wn1.y + dfw2_dy * wn2.y;
-    float dnz_dy = dfw0_dy * wn0.z + dfw1_dy * wn1.z + dfw2_dy * wn2.z;
-
-    float nx_row = fw0_row * wn0.x + fw1_row * wn1.x + fw2_row * wn2.x;
-    float ny_row = fw0_row * wn0.y + fw1_row * wn1.y + fw2_row * wn2.y;
-    float nz_row = fw0_row * wn0.z + fw1_row * wn1.z + fw2_row * wn2.z;
-
-    //1.10 Interpolation of World Positions
-    float pxw_row = fw0_row * wp0.x * invW.x + fw1_row * wp1.x * invW.y + fw2_row * wp2.x * invW.z;
-    float pyw_row = fw0_row * wp0.y * invW.x + fw1_row * wp1.y * invW.y + fw2_row * wp2.y * invW.z;
-    float pzw_row = fw0_row * wp0.z * invW.x + fw1_row * wp1.z * invW.y + fw2_row * wp2.z * invW.z;
-
-    float dpxw_dx = dfw0_dx * wp0.x * invW.x + dfw1_dx * wp1.x * invW.y + dfw2_dx * wp2.x * invW.z;
-    float dpyw_dx = dfw0_dx * wp0.y * invW.x + dfw1_dx * wp1.y * invW.y + dfw2_dx * wp2.y * invW.z;
-    float dpzw_dx = dfw0_dx * wp0.z * invW.x + dfw1_dx * wp1.z * invW.y + dfw2_dx * wp2.z * invW.z;
-
-    float dpxw_dy = dfw0_dy * wp0.x * invW.x + dfw1_dy * wp1.x * invW.y + dfw2_dy * wp2.x * invW.z;
-    float dpyw_dy = dfw0_dy * wp0.y * invW.x + dfw1_dy * wp1.y * invW.y + dfw2_dy * wp2.y * invW.z;
-    float dpzw_dy = dfw0_dy * wp0.z * invW.x + dfw1_dy * wp1.z * invW.y + dfw2_dy * wp2.z * invW.z;
-
-    int idx = minY * fbWidth + minX;
-    __m256 maxXV = _mm256_set1_ps((float)maxX + 0.5f);
-
-    // ===== PHASE 2 : SIMD Rasterization =====
-    for (uint32_t y = minY; y <= maxY; y++)
+    for (int y = bbox.minY; y <= bbox.maxY; y++)
     {
+        ScanlineState scan = setup.initScanline();      // makeRow8 pour tous les attributs
 
-        // 2.1 Setup the barycentric coordinates for the first pixel in the row
-        __m256 w0 = _mm256_set_ps(w0_row + 7 * dw0_dx, w0_row + 6 * dw0_dx, w0_row + 5 * dw0_dx, w0_row + 4 * dw0_dx, w0_row + 3 * dw0_dx, w0_row + 2 * dw0_dx, w0_row + 1 * dw0_dx, w0_row);
-        __m256 w1 = _mm256_set_ps(w1_row + 7 * dw1_dx, w1_row + 6 * dw1_dx, w1_row + 5 * dw1_dx, w1_row + 4 * dw1_dx, w1_row + 3 * dw1_dx, w1_row + 2 * dw1_dx, w1_row + 1 * dw1_dx, w1_row);
-        __m256 w2 = _mm256_set_ps(w2_row + 7 * dw2_dx, w2_row + 6 * dw2_dx, w2_row + 5 * dw2_dx, w2_row + 4 * dw2_dx, w2_row + 3 * dw2_dx, w2_row + 2 * dw2_dx, w2_row + 1 * dw2_dx, w2_row);
-
-        // 2.2 Setup the interpolated attributes for the first pixel in the row
-        __m256 uw = _mm256_set_ps(uw_row + 7 * duw_dx, uw_row + 6 * duw_dx, uw_row + 5 * duw_dx, uw_row + 4 * duw_dx, uw_row + 3 * duw_dx, uw_row + 2 * duw_dx, uw_row + 1 * duw_dx, uw_row);
-        __m256 vw = _mm256_set_ps(vw_row + 7 * dvw_dx, vw_row + 6 * dvw_dx, vw_row + 5 * dvw_dx, vw_row + 4 * dvw_dx, vw_row + 3 * dvw_dx, vw_row + 2 * dvw_dx, vw_row + 1 * dvw_dx, vw_row);
-        __m256 iw = _mm256_set_ps(iw_row + 7 * diw_dx, iw_row + 6 * diw_dx, iw_row + 5 * diw_dx, iw_row + 4 * diw_dx, iw_row + 3 * diw_dx, iw_row + 2 * diw_dx, iw_row + 1 * diw_dx, iw_row);
-
-        // 2.3 Setup the interpolated depth for the first pixel in the row
-        __m256 z = _mm256_set_ps(z_row + 7 * dz_dx, z_row + 6 * dz_dx, z_row + 5 * dz_dx, z_row + 4 * dz_dx, z_row + 3 * dz_dx, z_row + 2 * dz_dx, z_row + 1 * dz_dx, z_row);
-
-
-        // 2.4 Setup the interpolated normals for the first pixel in the row
-        __m256 nx = _mm256_set_ps(nx_row + 7 * dnx_dx, nx_row + 6 * dnx_dx, nx_row + 5 * dnx_dx, nx_row + 4 * dnx_dx, nx_row + 3 * dnx_dx, nx_row + 2 * dnx_dx, nx_row + 1 * dnx_dx, nx_row);
-        __m256 ny = _mm256_set_ps(ny_row + 7 * dny_dx, ny_row + 6 * dny_dx, ny_row + 5 * dny_dx, ny_row + 4 * dny_dx, ny_row + 3 * dny_dx, ny_row + 2 * dny_dx, ny_row + 1 * dny_dx, ny_row);
-        __m256 nz = _mm256_set_ps(nz_row + 7 * dnz_dx, nz_row + 6 * dnz_dx, nz_row + 5 * dnz_dx, nz_row + 4 * dnz_dx, nz_row + 3 * dnz_dx, nz_row + 2 * dnz_dx, nz_row + 1 * dnz_dx, nz_row);
-
-        // 2.5 Setup the interpolated world positions for the first pixel in the row
-        __m256 pxw = _mm256_set_ps(pxw_row + 7 * dpxw_dx, pxw_row + 6 * dpxw_dx, pxw_row + 5 * dpxw_dx, pxw_row + 4 * dpxw_dx, pxw_row + 3 * dpxw_dx, pxw_row + 2 * dpxw_dx, pxw_row + 1 * dpxw_dx, pxw_row);
-        __m256 pyw = _mm256_set_ps(pyw_row + 7 * dpyw_dx, pyw_row + 6 * dpyw_dx, pyw_row + 5 * dpyw_dx, pyw_row + 4 * dpyw_dx, pyw_row + 3 * dpyw_dx, pyw_row + 2 * dpyw_dx, pyw_row + 1 * dpyw_dx, pyw_row);
-        __m256 pzw = _mm256_set_ps(pzw_row + 7 * dpzw_dx, pzw_row + 6 * dpzw_dx, pzw_row + 5 * dpzw_dx, pzw_row + 4 * dpzw_dx, pzw_row + 3 * dpzw_dx, pzw_row + 2 * dpzw_dx, pzw_row + 1 * dpzw_dx, pzw_row);
-
-
-        // 2.6 Setup the x coordinates for the first pixel in the row
-        __m256 xVec = _mm256_set_ps((float)minX + 7.0f, (float)minX + 6.0f, (float)minX + 5.0f, (float)minX + 4.0f, (float)minX + 3.0f, (float)minX + 2.0f, (float)minX + 1.0f, (float)minX + 0.0f);
-
-        //all 8 pixel loops
-        for (uint32_t x = minX; x <= maxX; x += 8)
+        for (int x = bbox.minX; x <= bbox.maxX; x += 8)
         {
+            __m256 mask = computeMask(scan, ctx, idx, bbox.maxX - x + 1);
 
-            // 2.7 — Triangle coverage test: pixel is inside if all 3 edge weights >= 0
-            //If the pixel is inside the triangle draw it, otherwise discard it
-            __m256 zero  = _mm256_setzero_ps();
-            __m256 mask0 = _mm256_cmp_ps(w0, zero, _CMP_GE_OS);
-            __m256 mask1 = _mm256_cmp_ps(w1, zero, _CMP_GE_OS);
-            __m256 mask2 = _mm256_cmp_ps(w2, zero, _CMP_GE_OS);
-            __m256 triMask = _mm256_and_ps(_mm256_and_ps(mask0, mask1), mask2);
-
-            // 2.8 — Depth test: pixel passes if its z <= current z-buffer value
-            //if the pixel is closer to the camera than the current depth buffer value, draw it, otherwise discard it
-            __m256 zbufferVec = _mm256_loadu_ps(&zbuffer[idx]);
-            __m256 depthMask = _mm256_cmp_ps(z, zbufferVec, _CMP_LE_OS);
-
-
-            // 2.9 — Bounds mask: discard pixels beyond the triangle's bounding box
-            __m256 boundsMask = _mm256_cmp_ps(xVec, maxXV, _CMP_LE_OS);
-
-            // 2.10 — Combine coverage, depth, and bounds masks into final write mask
-            __m256 finalMask = _mm256_and_ps(_mm256_and_ps(triMask, depthMask), boundsMask);
-
-
-
-
-
-            // 2.11 — End-of-row mask: disables lanes beyond remaining pixels
-            int remaining = (int)maxX - (int)x + 1;
-            if (remaining < 8) {
-                __m256i boundsMask = _mm256_cmpgt_epi32(
-                    _mm256_set1_epi32(remaining),
-                    _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0)
-                );
-                finalMask = _mm256_and_ps(finalMask, _mm256_castsi256_ps(boundsMask));
-            }
-
-            // 2.13 — Masked z-buffer write (opaque only, transparent triangles skip this)
-            if (!_mm256_testz_ps(finalMask, finalMask))
+            if (!_mm256_testz_ps(mask, mask))
             {
-                // 2.13 — Masked z-buffer write (opaque only, transparent triangles skip this)
-                if (writeDepth)
-                {
-                    _mm256_maskstore_ps(&zbuffer[idx], _mm256_castps_si256(finalMask), z);
-                }
+                if (tri.writeDepth)
+                    _mm256_maskstore_ps(&ctx.zbuffer[idx], _mm256_castps_si256(mask), scan.z);
 
-
-                // 2.14 — Perspective correction: compute 1/w to recover true interpolated values
-                __m256 inv_iw = _mm256_rcp_ps(iw);
-
-                // 2.15 — Recover perspective-correct UVs and world positions (multiply by 1/w)
-                __m256 u = _mm256_mul_ps(uw, inv_iw);
-                __m256 v = _mm256_mul_ps(vw, inv_iw);
-                __m256 worldPosX = _mm256_mul_ps(pxw, inv_iw);
-                __m256 worldPosY = _mm256_mul_ps(pyw, inv_iw);
-                __m256 worldPosZ = _mm256_mul_ps(pzw, inv_iw);
-
-                // 2.16 — Build fragment input and run Blinn-Phong shader on 8 pixels
-                FragmentInput_8 frag;
-                frag.uv = { u, v };
-                frag.normal = { nx, ny, nz };
-                frag.worldPos = { worldPosX, worldPosY, worldPosZ };
-
-                Color8 color = evaluateBlinnPhong_8(frag, uniforms, C8);
-
-                // 2.17 — Alpha blending (src over): load existing framebuffer pixels,
-                //         blend dst = dst * (1 - alpha) + src * alpha per channel
-                __m256i dst = _mm256_maskload_epi32((const int*)&framebuffer[idx], _mm256_castps_si256(finalMask));
-
-                __m256 dstR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 16), _mm256_set1_epi32(0xFF)));
-                __m256 dstG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(dst, 8), _mm256_set1_epi32(0xFF)));
-                __m256 dstB = _mm256_cvtepi32_ps(_mm256_and_si256(dst, _mm256_set1_epi32(0xFF)));
-
-                dstR = _mm256_mul_ps(dstR, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
-                dstG = _mm256_mul_ps(dstG, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
-                dstB = _mm256_mul_ps(dstB, _mm256_sub_ps(_mm256_set1_ps(1.0f), color.a));
-
-                dstR = _mm256_add_ps(dstR, _mm256_mul_ps(_mm256_mul_ps(color.r, _mm256_set1_ps(255.0f)), color.a));
-                dstG = _mm256_add_ps(dstG, _mm256_mul_ps(_mm256_mul_ps(color.g, _mm256_set1_ps(255.0f)), color.a));
-                dstB = _mm256_add_ps(dstB, _mm256_mul_ps(_mm256_mul_ps(color.b, _mm256_set1_ps(255.0f)), color.a));
-
-                // 2.18 — Pack ARGB channels into uint32 and masked write to framebuffer
-                __m256i ri = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstR, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
-                __m256i gi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstG, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
-                __m256i bi = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(dstB, _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
-                __m256i ai = _mm256_cvtps_epi32(_mm256_min_ps(_mm256_max_ps(_mm256_mul_ps(color.a, _mm256_set1_ps(255.0f)), _mm256_setzero_ps()), _mm256_set1_ps(255.0f)));
-
-                __m256i packed = _mm256_or_si256(
-                    _mm256_or_si256(_mm256_slli_epi32(ai, 24), _mm256_slli_epi32(ri, 16)),
-                    _mm256_or_si256(_mm256_slli_epi32(gi, 8), bi)
-                );
-
-                _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(finalMask), packed);
+                FragmentInput_8 frag = scan.buildFragment();
+                Color8 color = evaluateBlinnPhong_8(frag, tri.uniforms, setup.camPos8);
+                alphaBlend_8(color, mask, ctx.framebuffer, idx);
             }
 
-            // 2.19 — Advance all interpolated attributes by 8 pixels in X (incremental, no recompute)
-            w0 = _mm256_add_ps(w0, _mm256_set1_ps(dw0_dx * 8));
-            w1 = _mm256_add_ps(w1, _mm256_set1_ps(dw1_dx * 8));
-            w2 = _mm256_add_ps(w2, _mm256_set1_ps(dw2_dx * 8));
-            z = _mm256_add_ps(z, _mm256_set1_ps(dz_dx * 8));
-            uw = _mm256_add_ps(uw, _mm256_set1_ps(duw_dx * 8));
-            vw = _mm256_add_ps(vw, _mm256_set1_ps(dvw_dx * 8));
-            iw = _mm256_add_ps(iw, _mm256_set1_ps(diw_dx * 8));
-            nx = _mm256_add_ps(nx, _mm256_set1_ps(dnx_dx * 8));
-            ny = _mm256_add_ps(ny, _mm256_set1_ps(dny_dx * 8));
-            nz = _mm256_add_ps(nz, _mm256_set1_ps(dnz_dx * 8));
-            pxw = _mm256_add_ps(pxw, _mm256_set1_ps(dpxw_dx * 8));
-            pyw = _mm256_add_ps(pyw, _mm256_set1_ps(dpyw_dx * 8));
-            pzw = _mm256_add_ps(pzw, _mm256_set1_ps(dpzw_dx * 8));
-
-            xVec = _mm256_add_ps(xVec, _mm256_set1_ps(8.0f));
-
+            scan.stepX();
             idx += 8;
         }
-        // 2.20 — Advance framebuffer index to next scanline, step all row values by dy
-        idx += fbWidth - covered;
-        z_row += dz_dy;
-        uw_row += duw_dy; vw_row += dvw_dy; iw_row += diw_dy;
-        nx_row += dnx_dy; ny_row += dny_dy; nz_row += dnz_dy;
-        pxw_row += dpxw_dy; pyw_row += dpyw_dy; pzw_row += dpzw_dy;
-        w0_row += dw0_dy; w1_row += dw1_dy; w2_row += dw2_dy;
+
+        idx += ctx.width - covered;
+        setup.stepRow();
     }
 }
+
 
 
 static inline void drawText(

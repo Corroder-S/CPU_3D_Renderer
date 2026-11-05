@@ -38,19 +38,19 @@ namespace {
     }
 }
 
-bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces)
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces)
 {
     Material dummyMaterial;
     return LoadObj(path, outVertices, outuvs, outFaces, dummyMaterial);
 }
 
-bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<face>& outFaces, Material& outMaterial)
+bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vector<Maths::Vec2f>& outuvs, std::vector<Face>& outFaces, Material& outMaterial)
 {
     MappedFile file(path);
-    if (!file.IsOpen()) return false;
+    if (!file.isOpen()) return false;
 
-    const char* data = file.Data();
-    const char* end = data + file.Size();
+    const char* data = file.data();
+    const char* end = data + file.size();
 
     std::unordered_map<std::string, Material> loadedMaterials;
     std::string currentMtlName;
@@ -112,7 +112,7 @@ bool LoadObj(const char* path, std::vector<Maths::Vec3f>& outVertices, std::vect
             int safeT2 = (t2 < 0 || t2 >= (int)outuvs.size()) ? 0 : t2;
             int safeT3 = (t3 < 0 || t3 >= (int)outuvs.size()) ? 0 : t3;
 
-            outFaces.push_back(face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
+            outFaces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
         }
         else if (std::strncmp(data, "mtllib ", 7) == 0)
         {
