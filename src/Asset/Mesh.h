@@ -23,6 +23,7 @@ struct SubMesh {
 struct Mesh {
     std::vector<Maths::Vec3f> vertices;
     std::vector<Maths::Vec2f> uvs;
+    std::vector<Color>        colors;
     std::vector<SubMesh>      submeshes;
 
     void computeNormals(float angleDeg = 50.0f)
@@ -45,7 +46,6 @@ struct Mesh {
         std::vector<FlatFaceRef> flatFaces;
         flatFaces.reserve(totalFaces);
 
-        // 1. Calcul des normales de face et construction de la table d'adjacence
         for (size_t smIdx = 0; smIdx < submeshes.size(); ++smIdx) {
             for (size_t fIdx = 0; fIdx < submeshes[smIdx].faces.size(); ++fIdx) {
                 const auto& f = submeshes[smIdx].faces[fIdx];
@@ -53,7 +53,11 @@ struct Mesh {
                 const auto& p1 = vertices[f.v.z];
                 const auto& p2 = vertices[f.v.y];
 
-                Maths::Vec3f fn = Maths::Normalize(Maths::Cross(p1 - p0, p2 - p0));
+                Maths::Vec3f cross = Maths::Cross(p1 - p0, p2 - p0);
+                float crossLenSq = Maths::Dot(cross, cross);
+
+                Maths::Vec3f fn = (crossLenSq > 1e-12f) ? Maths::Normalize(cross) : Maths::Vec3f{ 0.0f, 1.0f, 0.0f };
+
                 uint32_t flatIdx = static_cast<uint32_t>(flatFaces.size());
                 flatFaces.push_back({ smIdx, fIdx, fn });
 
@@ -63,7 +67,6 @@ struct Mesh {
             }
         }
 
-        // 2. Allocation et calcul des normales aux sommets par SubMesh
         for (auto& sm : submeshes) {
             sm.cornerNormals.resize(sm.faces.size() * 3);
         }
@@ -80,9 +83,10 @@ struct Mesh {
                         sum = sum + flatFaces[j].normal;
                     }
                 }
-                Maths::Vec3f n = Maths::Normalize(sum);
+
+                float lenSq = Maths::Dot(sum, sum);
                 submeshes[ref.submeshIdx].cornerNormals[ref.faceIdx * 3 + c] =
-                    (Maths::Dot(sum, sum) > 1e-12f) ? n : ref.normal;
+                    (lenSq > 1e-12f) ? Maths::Normalize(sum) : ref.normal;
             }
         }
     }

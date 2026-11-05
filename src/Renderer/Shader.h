@@ -21,6 +21,7 @@ struct FragmentInput_8 {
     Maths::Vec2<__m256> uv;
     Maths::Vec3<__m256> normal;
     Maths::Vec3<__m256> worldPos;
+    Color8 baseColor;
 };
 
 struct ShaderUniforms {
@@ -139,6 +140,8 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
 
     if (u.material->texture)
         albedo = albedo * unpackTexel8(u.material->texture->sampleBilinear_8(in.uv.x, in.uv.y));
+
+    albedo = albedo * in.baseColor;
 
     albedo.r = _mm256_mul_ps(albedo.r, albedo.r);
     albedo.g = _mm256_mul_ps(albedo.g, albedo.g);

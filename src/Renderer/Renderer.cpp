@@ -35,6 +35,8 @@ void Renderer::drawSubMesh(const Mesh& mesh, const SubMesh& submesh,
     const Maths::Matrix4x4<>& model, const ShaderUniforms& uniforms,
     bool isTransparent, std::vector<ScreenTriangle>& outTriangles)
 {
+    bool hasColors = !mesh.colors.empty();
+
     for (size_t fi = 0; fi < submesh.faces.size(); ++fi)
     {
         const auto& f = submesh.faces[fi];
@@ -43,9 +45,13 @@ void Renderer::drawSubMesh(const Mesh& mesh, const SubMesh& submesh,
         const Maths::Vec3f n1 = Maths::Normalize(model.TransformDirection(submesh.cornerNormals[fi * 3 + 1]));
         const Maths::Vec3f n2 = Maths::Normalize(model.TransformDirection(submesh.cornerNormals[fi * 3 + 2]));
 
-        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], n0, m_worldPositions[f.v.x] };
-        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], n1, m_worldPositions[f.v.z] };
-        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], n2, m_worldPositions[f.v.y] };
+        Color col0 = hasColors ? mesh.colors[f.v.x] : Color{ 1.0f, 1.0f, 1.0f, 1.0f };
+        Color col1 = hasColors ? mesh.colors[f.v.z] : Color{ 1.0f, 1.0f, 1.0f, 1.0f };
+        Color col2 = hasColors ? mesh.colors[f.v.y] : Color{ 1.0f, 1.0f, 1.0f, 1.0f };
+
+        ClipVertex v0 = { m_clipPositions[f.v.x], mesh.uvs[f.uv.x], n0, m_worldPositions[f.v.x], col0 };
+        ClipVertex v1 = { m_clipPositions[f.v.z], mesh.uvs[f.uv.z], n1, m_worldPositions[f.v.z], col1 };
+        ClipVertex v2 = { m_clipPositions[f.v.y], mesh.uvs[f.uv.y], n2, m_worldPositions[f.v.y], col2 };
 
         ClipVertex clipped[6];
         int numTris = clipTriangleNear(v0, v1, v2, clipped);
@@ -79,6 +85,7 @@ void Renderer::drawSubMesh(const Mesh& mesh, const SubMesh& submesh,
             tri.invW = invW;
             tri.n0 = tv0.normal; tri.n1 = tv1.normal; tri.n2 = tv2.normal;
             tri.wp0 = tv0.worldPos; tri.wp1 = tv1.worldPos; tri.wp2 = tv2.worldPos;
+            tri.c0 = tv0.color; tri.c1 = tv1.color; tri.c2 = tv2.color; // <-- AJOUT
             tri.uniforms = uniforms;
 
             tri.avgZ = (a.z + b.z + c.z) / 3.0f;

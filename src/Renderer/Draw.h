@@ -1,7 +1,7 @@
 #pragma once
 
-
 #include <cstdint>
+#include <algorithm>
 
 #include "Pipeline.h"
 #include "Shader.h"
@@ -329,7 +329,7 @@ inline void alphaBlend_8(const Color8& src, __m256 mask, uint32_t* framebuffer, 
 
 static inline void drawline(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
 {
-    int dx =  abs(x1 - x0);
+    int dx = abs(x1 - x0);
     int dy = -abs(y1 - y0);
     int sx = (x0 < x1) ? 1 : -1;
     int sy = (y0 < y1) ? 1 : -1;
@@ -445,8 +445,8 @@ static inline void drawText(
                 uint32_t dstColor = framebuffer[dstIdx];
 
                 uint8_t dr = (dstColor >> 16) & 0xFF;
-                uint8_t dg = (dstColor >> 8)  & 0xFF;
-                uint8_t db =  dstColor        & 0xFF;
+                uint8_t dg = (dstColor >> 8) & 0xFF;
+                uint8_t db = dstColor & 0xFF;
 
                 uint8_t outR = static_cast<uint8_t>(cr * finalAlpha + dr * (1.0f - finalAlpha));
                 uint8_t outG = static_cast<uint8_t>(cg * finalAlpha + dg * (1.0f - finalAlpha));
@@ -457,4 +457,3 @@ static inline void drawText(
         }
     }
 }
-
