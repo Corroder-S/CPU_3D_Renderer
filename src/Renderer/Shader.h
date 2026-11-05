@@ -7,8 +7,10 @@
 #include "Asset/Color.h"
 #include "Asset/Material.h"
 #include "Asset/Light.h"
+#include "Asset/Metal.h"
 #include "Maths/SIMD/Utils.h"
 #include "Maths/SIMD/Vec3.h"
+
 
 struct FragmentInput {
     Maths::Vec2f uv;
@@ -130,6 +132,9 @@ inline Color8 evaluateBlinnPhong_8(const FragmentInput_8& in, const ShaderUnifor
     albedo.b = _mm256_mul_ps(albedo.b, albedo.b);
 
     Maths::Vec3<__m256> N = Maths::SIMD::Normalize8(in.normal);
+
+    if (u.material->metallic > 0.0f)
+        return Metal::shade_8(in.worldPos, N, C, albedo, *u.material, u.lights, u.lightCount);
 
     Color ambLight = u.material->ambient * u.lights[0].ambient;
     __m256 ambR = _mm256_mul_ps(albedo.r, _mm256_set1_ps(ambLight.r));

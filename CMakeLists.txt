@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 add_subdirectory(Maths)
 
 
-file(GLOB_RECURSE SRC_FILES
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
         src/*.cpp src/*.h src/*.inl
         Editor/*.cpp Editor/*.h
 )

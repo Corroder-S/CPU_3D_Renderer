@@ -15,7 +15,7 @@ void Application::start()
     }
 
     Material loadedMaterial;
-    m_mesh = LoadMesh(ASSETS_PATH "Models/Car1.obj", loadedMaterial);
+    m_mesh = LoadMesh(ASSETS_PATH "fantasy-diamond.obj", loadedMaterial);
 
     /*std::shared_ptr<Texture>Spot_texture = std::make_shared<Texture>();
     Spot_texture->load(ASSETS_PATH "spot_texture.png");*/
@@ -24,8 +24,9 @@ void Application::start()
     carOpaque.mesh = &m_mesh;
     carOpaque.material = loadedMaterial;
     carOpaque.material.dissolve = 1.0f;
-    carOpaque.material.specular = Color(0.8f, 0.8f, 0.8f);
-    carOpaque.material.shininess = 8.0f;
+    carOpaque.material.diffuse = Color(1.00f, 0.84f, 0.54f);
+    carOpaque.material.metallic = 0.1f;
+    carOpaque.material.shininess = 64.0f;
     carOpaque.transform.position = { -1.0f, 0.0f, -10.0f };
     auto entity = m_registry.createEntity();
     m_registry.addComponents(entity, carOpaque.transform, MeshComponent{ carOpaque.mesh }, MaterialComponent{ carOpaque.material });
