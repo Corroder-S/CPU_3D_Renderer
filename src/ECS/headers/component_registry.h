@@ -17,6 +17,10 @@ namespace SER
     class JsonReadArchive;
 }
 
+// ============================================================================
+// REGISTRE DE COMPOSANTS — SÉRIALISATION ET RÉFLEXION
+// ============================================================================
+
 namespace ECS
 {
     class Registry;
@@ -25,25 +29,40 @@ namespace ECS
     using SER_JsonWriteArchive = ::gcep::SER::JsonWriteArchive;
     using SER_JsonReadArchive = ::gcep::SER::JsonReadArchive;
 
+    /// @brief Registre singleton recensant tous les types de composants connus.
+    ///
+    /// Chaque type enregistré expose des fonctions de sérialisation/désérialisation
+    /// JSON et de création de pool, permettant une gestion générique des composants.
     class ComponentRegistry
     {
     public:
+        /// @brief Entrée du registre pour un type de composant.
         struct Entry
         {
             uint32_t    typeID;
             std::string name;
+            /// @brief Garantit l'existence du pool de ce composant dans le Registry.
             std::function<void(Registry&)>                                                   ensurePool;
+            /// @brief Désérialise le composant depuis une archive binaire générique.
             std::function<void(Registry&, EntityID, SER_IArchive&)>                          deserialize;
+            /// @brief Sérialise tous les composants de ce type en JSON.
             std::function<void(Registry&, SER_JsonWriteArchive&)>                            serializeJson;
+            /// @brief Sérialise le composant d'une entité donnée en JSON.
             std::function<void(Registry&, EntityID, SER_JsonWriteArchive&)>                  serializeEntityJson;
+            /// @brief Désérialise le composant d'une entité depuis des données JSON parsées.
             std::function<void(Registry&, EntityID, const SER_JsonReadArchive::EntityData&)> deserializeJson;
         };
 
+        /// @brief Retourne l'instance unique du registre.
         static ComponentRegistry& instance();
 
+        /// @brief Enregistre le type T et génère ses fonctions de sérialisation.
+        /// @tparam T Type de composant à enregistrer.
+        /// @return Vrai si l'enregistrement a réussi.
         template<typename T>
         bool reg();
 
+        /// @brief Retourne la liste de toutes les entrées enregistrées.
         const std::vector<Entry>& entries() const;
 
     private:

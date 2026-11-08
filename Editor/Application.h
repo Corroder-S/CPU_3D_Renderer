@@ -10,7 +10,14 @@
 #include "System/RendererSystem.h"
 #include "System/UISystem.h"
 
+// ============================================================================
+// APPLICATION PRINCIPALE DE L'ÉDITEUR
+// ============================================================================
 
+/// @brief Point d'entrée de la démo : initialise la scène et orchestre les systèmes.
+///
+/// Hérite de Engine pour accéder à la boucle principale, au renderer
+/// et aux hooks start()/update().
 class Application : public Engine
 {
     Mesh             m_mesh;
@@ -29,6 +36,9 @@ class Application : public Engine
     ECS::EntityID m_FpsTextEntity;
 
 public:
+    /// @brief Charge les assets, crée les entités et configure les systèmes.
     void start()  override;
+
+    /// @brief Met à jour les systèmes et gère les entrées caméra.
     void update() override;
 };

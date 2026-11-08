@@ -8,9 +8,18 @@
 #include <thread>
 #include <vector>
 
+// ============================================================================
+// POOL DE THREADS DE TRAVAIL
+// ============================================================================
+
+/// @brief Pool de threads statique pour l'exécution parallèle d'une boucle.
+/// Utilise un compteur atomique pour distribuer les itérations entre le thread
+/// appelant et les threads workers sans overhead de mutex par itération.
 class WorkerPool
 {
 public:
+    /// @brief Crée le pool avec un nombre de threads donné.
+    /// Par défaut, utilise hardware_concurrency - 1 (le thread principal compte comme un worker).
     explicit WorkerPool(int numThreads = std::max(1, (int)std::thread::hardware_concurrency() - 1))
     {
         for (int i = 0; i < numThreads; i++)
@@ -24,6 +33,10 @@ public:
         for (auto& t : m_threads) t.join();
     }
 
+    /// @brief Exécute fn(i) pour i ∈ [0, count) en parallèle sur tous les threads.
+    /// Bloque jusqu'à ce que toutes les itérations soient terminées.
+    /// @param count Nombre d'itérations.
+    /// @param fn Fonction à appeler avec l'index de l'itération.
     void parallelFor(uint32_t count, const std::function<void(uint32_t)>& fn)
     {
         {
@@ -36,13 +49,15 @@ public:
         }
         m_wake.notify_all();
 
-        run(); // le main thread travaille aussi
+        // Le thread appelant travaille aussi pendant l'attente
+        run();
 
         std::unique_lock lk(m_mutex);
         m_done.wait(lk, [&] { return m_busy == 0; });
     }
 
 private:
+    /// @brief Consomme les itérations disponibles via fetch_add atomique.
     void run()
     {
         uint32_t i;
@@ -50,6 +65,7 @@ private:
             (*m_fn)(i);
     }
 
+    /// @brief Boucle principale de chaque thread worker — attend un signal de réveil.
     void loop()
     {
         uint64_t seen = 0;
@@ -74,8 +90,8 @@ private:
     std::condition_variable m_wake, m_done;
     const std::function<void(uint32_t)>* m_fn = nullptr;
     uint32_t m_count = 0;
-    std::atomic<uint32_t> m_next{ 0 };
-    int m_busy = 0;
-    uint64_t m_generation = 0;
+    std::atomic<uint32_t> m_next{ 0 }; ///< Prochain index à traiter (accès lock-free).
+    int m_busy = 0;                     ///< Nombre de threads encore en cours d'exécution.
+    uint64_t m_generation = 0;          ///< Incrémenté à chaque appel parallelFor pour réveiller les workers.
     bool m_stop = false;
 };
