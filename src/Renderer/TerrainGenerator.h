@@ -9,6 +9,11 @@
 #include <algorithm>
 #include <cmath>
 
+// ============================================================================
+// TERRAIN GENERATOR ENUMS & CONFIGURATION
+// ============================================================================
+
+/// @brief Type d'algorithme de génération procédurale pour le terrain.
 enum class TerrainType {
     StandardFBM,
     MountainRidged,
@@ -18,6 +23,7 @@ enum class TerrainType {
     Island
 };
 
+/// @brief Paramètres d'échantillonnage et dimensions de la grille de terrain.
 struct TerrainParams {
     int width = 128;
     int depth = 128;
@@ -32,8 +38,13 @@ struct TerrainParams {
     TerrainType type = TerrainType::MountainRidged;
 };
 
+// ============================================================================
+// TERRAIN GENERATOR CLASS
+// ============================================================================
+
 class TerrainGenerator {
 public:
+    /// @brief Génère un Mesh procédural avec altitudes, UVs et biomes par vertex color.
     static Mesh Generate(const TerrainParams& params) {
         Mesh mesh;
         PerlinNoise perlin(params.seed);
@@ -49,6 +60,9 @@ public:
         mesh.uvs.reserve(totalVertices);
         mesh.colors.reserve(totalVertices);
 
+        // --- Samplers de Bruit Procédural ---
+
+        // Ridged FBM 2D préservant le relief dans les vallées
         auto sampleRidgedFBM = [&](float wx, float wz) -> float {
             float sum = 0.0f;
             float freq = params.frequency;
@@ -74,6 +88,7 @@ public:
             return (sum * 0.70f + ruggedDetail * 0.30f - 0.20f) * params.heightScale;
             };
 
+        // Hauteur de l'île avec plancher sous l'eau
         auto sampleIslandHeight = [&](float wx, float wz) -> float {
             float wx_c = wx - offsetX;
             float wz_c = wz - offsetZ;
@@ -91,6 +106,7 @@ public:
             return (height < -0.3f) ? -0.3f : height;
             };
 
+        // Échantillonneur global d'altitude selon le biome
         auto getTerrainHeight = [&](float wx, float wz) -> float {
             float nx = wx * params.frequency;
             float nz = wz * params.frequency;
@@ -110,6 +126,7 @@ public:
 
         const float delta = params.cellSize;
 
+        // 1. Génération des Sommets et Calcul des Biomes (Vertex Colors)
         for (int z = 0; z < numVerticesZ; ++z) {
             for (int x = 0; x < numVerticesX; ++x) {
                 float worldX = x * params.cellSize;
@@ -184,6 +201,7 @@ public:
                     else                   finalColor = Color{ 0.58f, 0.44f, 0.36f, 1.0f };
                 }
                 else {
+                    // Biome Montagne Réaliste : calcul de pente en radians et micro-bruit
                     float hL = getTerrainHeight(worldX - delta, worldZ);
                     float hR = getTerrainHeight(worldX + delta, worldZ);
                     float hD = getTerrainHeight(worldX, worldZ - delta);
@@ -220,6 +238,7 @@ public:
             }
         }
 
+        // 2. Triangulation de la Grille (Faces du SubMesh)
         SubMesh submesh;
         submesh.materialName = "TerrainMaterial";
 
@@ -232,7 +251,6 @@ public:
                 int topRight = topLeft + 1;
                 int bottomLeft = (z + 1) * numVerticesX + x;
                 int bottomRight = bottomLeft + 1;
-
 
                 Face f1;
                 f1.v = Maths::Vec3i{ topLeft, bottomLeft, topRight };
@@ -247,6 +265,8 @@ public:
         }
 
         mesh.submeshes.push_back(submesh);
+
+        // 3. Calcul des Normales aux Sommets
         mesh.computeNormals(70.0f);
 
         return mesh;

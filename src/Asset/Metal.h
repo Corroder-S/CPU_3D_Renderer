@@ -9,8 +9,13 @@
 #include "Maths/SIMD/Utils.h"
 #include "Maths/SIMD/Vec3.h"
 
+// ============================================================================
+// SIMD PBR SHADING PIPELINE (METAL & GLASS)
+// ============================================================================
+
 namespace Metal {
 
+    // --- Constantes Fisheye / Environment Shading ---
     constexpr float kLightDirSign = -1.0f;
     constexpr float kHorizonBlurMin = 0.30f;
     constexpr float kMetalGrazingBoost = 0.30f;
@@ -22,6 +27,7 @@ namespace Metal {
     constexpr float kGlassMaxShininess = 200.0f;
     constexpr float kSunColor[3] = { 1.00f, 0.95f, 0.85f };
 
+    /// @brief Paramètres d'environnement global pour la carte de réflexion procédurale.
     struct Environment {
         float horizonSky[3] = { 0.20f, 0.22f, 0.30f };
         float zenith[3] = { 0.03f, 0.03f, 0.07f };
@@ -32,6 +38,7 @@ namespace Metal {
     };
     inline Environment g_env;
 
+    /// @brief Reconfigure les couleurs d'ambiance de l'environnement sky/ground.
     inline void setEnvironment(const Color& sky, const Color& ground,
         float horizonLift = 0.15f, float exposure = 1.0f, float saturation = 0.60f)
     {
@@ -47,10 +54,15 @@ namespace Metal {
         g_env.saturation = saturation;
     }
 
+    /// @brief Utilitaires de conversion de couleur binaire 32-bit.
     inline Color colorFromARGB(uint32_t c)
     {
         return Color(((c >> 16) & 0xFF) / 255.0f, ((c >> 8) & 0xFF) / 255.0f, (c & 0xFF) / 255.0f, 1.0f);
     }
+
+    // ============================================================================
+    // INTERNAL SIMD MATH & HELPER FUNCTIONS
+    // ============================================================================
 
     namespace detail {
 
@@ -98,6 +110,7 @@ namespace Metal {
 
         struct Rgb8 { __m256 r, g, b; };
 
+        /// @brief Échantillonne la carte de réflexion d'environnement pour 8 rayons SIMD.
         inline Rgb8 sampleEnvironment(const Maths::Vec3<__m256>& R, const Maths::Vec3f& toSun,
             float sunPower, float sunIntensity, float blur)
         {
@@ -130,6 +143,7 @@ namespace Metal {
             Maths::Vec3<__m256> R;
         };
 
+        /// @brief Calcule le produit scalaire NdotV et le rayon de réflexion R pour 8 pixels SIMD.
         inline View8 viewSetup(const Maths::Vec3<__m256>& worldPos, Maths::Vec3<__m256> N,
             const Maths::Vec3<__m256>& C)
         {
@@ -142,6 +156,7 @@ namespace Metal {
 
             __m256 NdotVraw = Maths::SIMD::Dot8(N, V);
 
+            // Inversion de la normale si l'observateur regarde la face arrière (back-face)
             __m256 backMask = _mm256_cmp_ps(NdotVraw, zero, _CMP_LT_OS);
             N.x = _mm256_blendv_ps(N.x, _mm256_sub_ps(zero, N.x), backMask);
             N.y = _mm256_blendv_ps(N.y, _mm256_sub_ps(zero, N.y), backMask);
@@ -173,6 +188,11 @@ namespace Metal {
 
     }
 
+    // ============================================================================
+    // SHADER IMPLEMENTATIONS (METALLIC & GLASS)
+    // ============================================================================
+
+    /// @brief Rendu PBR Métallique SIMD (Fresnel Schlick + Réflexion d'environnement).
     inline Color8 shade_8(const Maths::Vec3<__m256>& worldPos,
         const Maths::Vec3<__m256>& N,
         const Maths::Vec3<__m256>& C,
@@ -183,6 +203,7 @@ namespace Metal {
         using namespace detail;
         const __m256 one = _mm256_set1_ps(1.0f);
 
+        // 1. Dérivation des paramètres d'état du matériau
         const float metallic = std::clamp(mat.metallic, 0.0f, 1.0f);
         const float shininess = std::max(mat.shininess, 1.0f);
         const float rough = std::sqrt(2.0f / (shininess + 2.0f));
@@ -192,6 +213,7 @@ namespace Metal {
 
         View8 v = viewSetup(worldPos, N, C);
 
+        // 2. Approximation de Fresnel-Schlick pour matériaux métalliques/diélectriques
         const __m256 mm = _mm256_set1_ps(metallic);
         const __m256 diel = _mm256_set1_ps(0.04f);
         const __m256 smooth = _mm256_set1_ps(1.0f - rough);
@@ -205,8 +227,10 @@ namespace Metal {
         __m256 Fg = _mm256_add_ps(F0g, _mm256_mul_ps(_mm256_sub_ps(_mm256_max_ps(smooth, F0g), F0g), f5));
         __m256 Fb = _mm256_add_ps(F0b, _mm256_mul_ps(_mm256_sub_ps(_mm256_max_ps(smooth, F0b), F0b), f5));
 
+        // 3. Échantillonnage de la carte d'environnement
         Rgb8 env = sampleEnvironment(v.R, toSun, shininess, sunI, blur);
 
+        // 4. Accumulation de la contribution diffuse
         __m256 diffAcc = diffuseSum(N, lights, lightCount);
         Color ambLight = mat.ambient * lights[0].ambient;
         const __m256 kd = _mm256_set1_ps(1.0f - metallic);
@@ -215,14 +239,16 @@ namespace Metal {
         __m256 lg = _mm256_mul_ps(_mm256_mul_ps(kd, albedo.g), _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.g)));
         __m256 lb = _mm256_mul_ps(_mm256_mul_ps(kd, albedo.b), _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.b)));
 
+        // 5. Assemblage final et correction Gamma (Sqrt)
         Color8 out;
-        out.r = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lr, _mm256_mul_ps(Fr, env.r))));  // gamma ~2.0
+        out.r = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lr, _mm256_mul_ps(Fr, env.r))));
         out.g = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lg, _mm256_mul_ps(Fg, env.g))));
         out.b = _mm256_sqrt_ps(saturate8(_mm256_add_ps(lb, _mm256_mul_ps(Fb, env.b))));
         out.a = saturate8(_mm256_mul_ps(albedo.a, _mm256_set1_ps(mat.dissolve)));
         return out;
     }
 
+    /// @brief Rendu Transparent/Verre SIMD (Fresnel + Transmission/Réflexion combinées).
     inline Color8 shadeGlass_8(const Maths::Vec3<__m256>& worldPos,
         const Maths::Vec3<__m256>& N,
         const Maths::Vec3<__m256>& C,
@@ -233,6 +259,7 @@ namespace Metal {
         using namespace detail;
         const __m256 one = _mm256_set1_ps(1.0f);
 
+        // 1. Préparation des paramètres physiques du verre
         const float shininess = std::clamp(mat.shininess, 1.0f, kGlassMaxShininess);
         const float rough = std::sqrt(2.0f / (shininess + 2.0f));
         const float blur = std::min(1.0f, kHorizonBlurMin + 0.50f * rough);
@@ -241,15 +268,18 @@ namespace Metal {
 
         View8 v = viewSetup(worldPos, N, C);
 
+        // 2. Calcul du terme de Fresnel pour le verre (F0 = 0.04)
         const __m256 F0 = _mm256_set1_ps(kGlassF0);
         __m256 F = _mm256_add_ps(F0, _mm256_mul_ps(_mm256_sub_ps(one, F0), pow8_8(_mm256_sub_ps(one, v.NdotV))));
 
+        // 3. Réflexion d'environnement pondérée
         Rgb8 env = sampleEnvironment(v.R, toSun, shininess, sunI, blur);
         const __m256 envScale = _mm256_set1_ps(kGlassEnvScale);
         env.r = _mm256_mul_ps(env.r, envScale);
         env.g = _mm256_mul_ps(env.g, envScale);
         env.b = _mm256_mul_ps(env.b, envScale);
 
+        // 4. Transmission du corps et éclairage sous-jacent
         __m256 diffAcc = diffuseSum(N, lights, lightCount);
         Color ambLight = mat.ambient * lights[0].ambient;
         __m256 br = _mm256_mul_ps(albedo.r, _mm256_add_ps(diffAcc, _mm256_set1_ps(ambLight.r)));
@@ -259,6 +289,7 @@ namespace Metal {
         __m256 ab = saturate8(_mm256_mul_ps(albedo.a, _mm256_set1_ps(mat.dissolve * kGlassBodyOpacity)));
         __m256 a = _mm256_max_ps(_mm256_sub_ps(_mm256_add_ps(ab, F), _mm256_mul_ps(ab, F)), _mm256_set1_ps(1e-3f));
 
+        // 5. Normalisation et sortie des canaux avec correction Gamma
         Color8 out;
         out.r = _mm256_sqrt_ps(saturate8(_mm256_div_ps(_mm256_add_ps(_mm256_mul_ps(br, ab), _mm256_mul_ps(env.r, F)), a)));
         out.g = _mm256_sqrt_ps(saturate8(_mm256_div_ps(_mm256_add_ps(_mm256_mul_ps(bg, ab), _mm256_mul_ps(env.g, F)), a)));

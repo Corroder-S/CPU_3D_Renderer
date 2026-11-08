@@ -7,8 +7,13 @@
 #include <unordered_map>
 #include <algorithm>
 
+// ============================================================================
+// OBJ MESH PARSER IMPLEMENTATION
+// ============================================================================
+
 bool LoadObj(const char* path, Mesh& outMesh)
 {
+    // 1. Ouverture du fichier via Memory-Mapping
     MappedFile file(path);
     if (!file.isOpen()) return false;
 
@@ -22,11 +27,13 @@ bool LoadObj(const char* path, Mesh& outMesh)
     SubMesh currentSubMesh;
     currentSubMesh.materialName = "Default";
 
+    // 2. Parsing du buffer mémoire ligne par ligne
     while (data < end)
     {
         while (data < end && (*data == ' ' || *data == '\t')) data++;
         if (data >= end) break;
 
+        // Sommet géométrique (v x y z)
         if (data[0] == 'v' && data[1] == ' ')
         {
             const char* p = data + 2;
@@ -35,6 +42,7 @@ bool LoadObj(const char* path, Mesh& outMesh)
             float z = std::strtof(p, (char**)&p);
             outMesh.vertices.push_back(Maths::Vec3f(x, y, z));
         }
+        // Coordonnée de texture (vt u v)
         else if (data[0] == 'v' && data[1] == 't' && data[2] == ' ')
         {
             const char* p = data + 3;
@@ -42,6 +50,7 @@ bool LoadObj(const char* path, Mesh& outMesh)
             float v = std::strtof(p, (char**)&p);
             outMesh.uvs.push_back(Maths::Vec2f(u, v));
         }
+        // Face triangulaire (f v1/t1 v2/t2 v3/t3)
         else if (data[0] == 'f' && data[1] == ' ')
         {
             const char* p = data + 2;
@@ -68,6 +77,7 @@ bool LoadObj(const char* path, Mesh& outMesh)
 
             currentSubMesh.faces.push_back(Face(Maths::Vec3i(v1, v2, v3), Maths::Vec3i(safeT1, safeT2, safeT3)));
         }
+        // Chargement du fichier MTL (mtllib filename.mtl)
         else if (std::strncmp(data, "mtllib ", 7) == 0)
         {
             const char* p = data + 7;
@@ -83,6 +93,7 @@ bool LoadObj(const char* path, Mesh& outMesh)
 
             loadedMaterials = MtlLoader::load(mtlPath, baseDir);
         }
+        // Changement de matériau -> création d'un nouveau SubMesh (usemtl MaterialName)
         else if (std::strncmp(data, "usemtl ", 7) == 0)
         {
             if (!currentSubMesh.faces.empty()) {
@@ -107,12 +118,17 @@ bool LoadObj(const char* path, Mesh& outMesh)
         data++;
     }
 
+    // 3. Pousse le dernier sous-maillage en cours d'accumulation
     if (!currentSubMesh.faces.empty()) {
         outMesh.submeshes.push_back(currentSubMesh);
     }
 
     return true;
 }
+
+// ============================================================================
+// PUBLIC MESH LOADER WRAPPERS
+// ============================================================================
 
 Mesh LoadMesh(const char* path)
 {

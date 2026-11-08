@@ -1,11 +1,14 @@
 ﻿#define STB_IMAGE_IMPLEMENTATION
 #include "Texture.h"
 
-
+// ============================================================================
+// IMAGE LOADING IMPLEMENTATION (STB_IMAGE)
+// ============================================================================
 
 bool Texture::load(const std::string& filepath) {
     int channels;
 
+    // 1. DÉcodage du fichier image en 4 canaux RGBA bruts
     stbi_uc* data = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
 
     if (!data) {
@@ -14,6 +17,7 @@ bool Texture::load(const std::string& filepath) {
         return false;
     }
 
+    // 2. Re-conversion vers le format interne ARGB 32-bit
     pixels.resize(width * height);
 
     for (int i = 0; i < width * height; ++i) {
@@ -28,8 +32,9 @@ bool Texture::load(const std::string& filepath) {
             static_cast<uint32_t>(b);
     }
 
+    // 3. Libération de la mémoire STB
     stbi_image_free(data);
 
-    std::cout << "[Texture] Charg�e : " << filepath << " (" << width << "x" << height << ")" << std::endl;
+    std::cout << "[Texture] Chargée : " << filepath << " (" << width << "x" << height << ")" << std::endl;
     return true;
 }
