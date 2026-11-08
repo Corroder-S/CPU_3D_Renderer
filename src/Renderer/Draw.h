@@ -14,17 +14,28 @@
 
 
 
+// ============================================================================
+// FONCTIONS D'ARÊTE ET POIDS BARYCENTRIQUES
+// ============================================================================
+
+/// @brief Calcule la valeur signée de l'arête AB évaluée au point C (produit croisé 2D).
+/// @return Valeur positive si C est à gauche de AB, négative sinon.
 static inline float edge(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c)
 {
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-
+/// @brief Calcule les trois poids de l'équation des arêtes (coordonnées barycentriques non normalisées).
+/// @return Vec3f contenant (w0, w1, w2) pour le point p par rapport au triangle (a, b, c).
 inline Maths::Vec3f computeEdgeWeights(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c, Maths::Vec3f p) {
     return { edge(b, c, p), edge(c, a, p), edge(a, b, p) };
 }
 
+/// @brief Gradients des poids d'arête selon X et Y, utilisés pour l'interpolation différentielle.
 struct EdgeGradients { Maths::Vec3f dx, dy; };
+
+/// @brief Calcule les gradients (dx, dy) des trois fonctions d'arête pour un triangle.
+/// @return Structure EdgeGradients contenant les dérivées partielles de chaque arête.
 inline EdgeGradients computeEdgeGradients(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c) {
     return {
                 { b.y - c.y, c.y - a.y, a.y - b.y },   // dx
@@ -34,41 +45,53 @@ inline EdgeGradients computeEdgeGradients(Maths::Vec3f a, Maths::Vec3f b, Maths:
 
 
 
+// ============================================================================
+// STRUCTURES DE RASTERISATION
+// ============================================================================
+
+/// @brief Représente un triangle projeté en espace écran, avec tous ses attributs interpolables.
 struct ScreenTriangle {
-    Maths::Vec3f a, b, c;
-    Maths::Vec2f uv0, uv1, uv2;
-    Maths::Vec3f invW;
-    Maths::Vec3f n0, n1, n2;
-    Maths::Vec3f wp0, wp1, wp2;
-    Color c0, c1, c2;
+    Maths::Vec3f a, b, c;          // Coordonnées écran des trois sommets (x, y, z NDC)
+    Maths::Vec2f uv0, uv1, uv2;    // Coordonnées de texture par sommet
+    Maths::Vec3f invW;              // 1/w clip par sommet (correction perspective)
+    Maths::Vec3f n0, n1, n2;       // Normales monde par sommet
+    Maths::Vec3f wp0, wp1, wp2;    // Positions monde par sommet
+    Color c0, c1, c2;              // Couleurs vertex par sommet
 
     ShaderUniforms uniforms;
     float avgZ = 0.0f;
-    bool writeDepth = true;
+    bool writeDepth = true;        // Si faux, le triangle n'écrit pas dans le z-buffer
 };
 
 
+/// @brief Contexte de rasterisation passé aux fonctions de rendu (framebuffer, zbuffer, dimensions).
 struct RasterContext {
     uint32_t* framebuffer;
     float*    zbuffer;
     uint32_t       width;
     uint32_t       height;
-    Maths::Vec2i     renderMin;
-    Maths::Vec2i     renderMax;
+    Maths::Vec2i     renderMin;  // Coin supérieur gauche de la zone de rendu
+    Maths::Vec2i     renderMax;  // Coin inférieur droit de la zone de rendu
 };
 
+/// @brief Stocke les valeurs et gradients (dx, dy) d'un attribut Vec3 pour l'interpolation incrémentale.
 struct InterpVec3 {
     Maths::Vec3f row;  // { nx_row, ny_row, nz_row }
     Maths::Vec3f dx;   // { dnx_dx, dny_dx, dnz_dx }
     Maths::Vec3f dy;   // { dnx_dy, dny_dy, dnz_dy }
 };
 
-
+/// @brief Boîte englobante 2D en coordonnées écran entières, clampée à la zone de rendu.
 struct BBox2D {
     int minX, minY, maxX, maxY;
 
+    /// @return Vrai si la boîte englobante est vide (aucun pixel à rasteriser).
     bool empty() const { return minX > maxX || minY > maxY; }
 
+    /// @brief Construit la BBOX d'un triangle en la clampant aux limites de la zone de clip.
+    /// @param a, b, c   Sommets écran du triangle.
+    /// @param clipMin   Coin supérieur gauche de la zone de clip.
+    /// @param clipMax   Coin inférieur droit de la zone de clip.
     static BBox2D fromTriangle(Maths::Vec3f a, Maths::Vec3f b, Maths::Vec3f c, Maths::Vec2i clipMin, Maths::Vec2i clipMax) {
         return {
             std::max(clipMin.x, std::min({(int)a.x, (int)b.x, (int)c.x})),
@@ -79,14 +102,19 @@ struct BBox2D {
     }
 };
 
+/// @brief État SIMD d'une scanline en cours de rasterisation (8 pixels en parallèle via AVX2).
+///
+/// Contient les poids d'arête, la profondeur, les UVs, les normales, la position monde
+/// et les couleurs vertex sous forme de registres __m256. Permet le pas incrémental
+/// via stepX() et la reconstruction du fragment via buildFragment().
 struct ScanlineState {
-    __m256 w0, w1, w2;       // edge weights
-    __m256 z;                 // depth
-    __m256 uw, vw, iw;       // UVs + invW
-    Maths::Vec3<__m256> normals;    // normal
-    Maths::Vec3<__m256> wp;   // world pos
-    Maths::Vec3<__m256> colorRGB;   // vertex color RGB
-    __m256 colorA;                  // vertex color alpha
+    __m256 w0, w1, w2;       // poids des arêtes (barycentriques non normalisés)
+    __m256 z;                 // profondeur NDC
+    __m256 uw, vw, iw;       // UVs × invW et invW (pré-multiplié pour correction perspective)
+    Maths::Vec3<__m256> normals;    // normale interpolée
+    Maths::Vec3<__m256> wp;   // position monde interpolée
+    Maths::Vec3<__m256> colorRGB;   // couleur vertex RGB interpolée
+    __m256 colorA;                  // couleur vertex alpha interpolée
     __m256 xVec;
 
     // Pré-calculés pour le step
@@ -133,6 +161,9 @@ struct ScanlineState {
 };
 
 
+/// @brief Crée un vecteur AVX2 de 8 valeurs régulièrement espacées : [base, base+step, ..., base+7*step].
+/// @param base  Valeur de départ (lane 0).
+/// @param step  Incrément entre chaque lane.
 inline __m256 makeRow8(float base, float step) {
     // [base, base+step, base+2*step, ..., base+7*step]
     return _mm256_fmadd_ps(
@@ -142,10 +173,15 @@ inline __m256 makeRow8(float base, float step) {
     );
 }
 
+/// @brief Résultat du pré-calcul scalaire d'un triangle avant rasterisation SIMD.
+///
+/// Stocke les valeurs initiales et les gradients (dx, dy) de tous les attributs
+/// interpolés à la première ligne/colonne de la BBOX. Permet d'initialiser
+/// et d'avancer la ScanlineState ligne par ligne.
 struct TriangleSetup
 {
     Maths::Vec3<__m256> camPos8;
-    // Edge weights + gradients (for step and coverage test)
+    // Poids d'arête + gradients (pour le pas incrémental et le test de couverture)
     InterpVec3 edges;  // .row = w_row, .dx = dw.dx, .dy = dw.dy (non normalisés)
 
     Maths::Vec3f depthData; // z_row, dz_dx, dz_dy
@@ -211,6 +247,14 @@ struct TriangleSetup
     }
 };
 
+// ============================================================================
+// SETUP ET RASTERISATION
+// ============================================================================
+
+/// @brief Pré-calcule tous les gradients scalaires d'un triangle pour la rasterisation SIMD.
+/// @param tri  Triangle projeté avec ses attributs par sommet.
+/// @param bbox Boîte englobante de rasterisation.
+/// @return Structure TriangleSetup prête pour l'initialisation des scanlines.
 inline TriangleSetup setupTriangle(const ScreenTriangle& tri, const BBox2D& bbox)
 {
     TriangleSetup triangle;
@@ -293,6 +337,12 @@ inline TriangleSetup setupTriangle(const ScreenTriangle& tri, const BBox2D& bbox
 }
 
 
+/// @brief Calcule le masque SIMD combinant couverture du triangle, test de profondeur et borne de ligne.
+/// @param scan      État courant de la scanline.
+/// @param ctx       Contexte de rasterisation (zbuffer, dimensions).
+/// @param idx       Index linéaire du premier pixel du bloc de 8 dans le framebuffer.
+/// @param remaining Nombre de pixels restants dans la ligne (pour le masque de bord).
+/// @return Masque __m256 : bits actifs = pixels à écrire.
 inline __m256 computeMask(const ScanlineState& scan, const RasterContext& ctx, int idx, int remaining)
 {
     __m256 zero  = _mm256_setzero_ps();
@@ -321,6 +371,11 @@ inline __m256 computeMask(const ScanlineState& scan, const RasterContext& ctx, i
     return finalMask;
 }
 
+/// @brief Applique le mélange alpha (src over) sur 8 pixels simultanément via AVX2.
+/// @param src         Couleur source SIMD (RGBA en flottant normalisé [0,1]).
+/// @param mask        Masque de pixels actifs.
+/// @param framebuffer Buffer destination.
+/// @param idx         Index du premier pixel du bloc dans le framebuffer.
 inline void alphaBlend8(const Color8& src, __m256 mask, uint32_t* framebuffer, int idx)
 {
     // 2.17 — Alpha blending (src over): load existing framebuffer pixels,
@@ -353,6 +408,11 @@ inline void alphaBlend8(const Color8& src, __m256 mask, uint32_t* framebuffer, i
     _mm256_maskstore_epi32((int*)&framebuffer[idx], _mm256_castps_si256(mask), packed);
 }
 
+/// @brief Trace un segment de droite entre deux points par l'algorithme de Bresenham.
+/// @param x0, y0    Point de départ en pixels.
+/// @param x1, y1    Point d'arrivée en pixels.
+/// @param color     Couleur ARGB 32 bits du trait.
+/// @param framebuffer Buffer destination (dimensions RENDER_WIDTH × RENDER_HEIGHT).
 static inline void drawLine(int x0, int y0, int x1, int y1, uint32_t color, std::vector<uint32_t>& framebuffer)
 {
     int dx = abs(x1 - x0);
@@ -376,6 +436,9 @@ static inline void drawLine(int x0, int y0, int x1, int y1, uint32_t color, std:
 
 
 
+/// @brief Rasterise un triangle projeté avec interpolation perspective et rendu SIMD AVX2 (8 pixels/cycle).
+/// @param tri Triangle projeté avec attributs par sommet et uniformes shader.
+/// @param ctx Contexte de rasterisation (framebuffer, zbuffer, zone de rendu).
 static inline void drawTriangle(const ScreenTriangle& tri, const RasterContext& ctx)
 {
     BBox2D bbox = BBox2D::fromTriangle(tri.a, tri.b, tri.c, ctx.renderMin, ctx.renderMax);

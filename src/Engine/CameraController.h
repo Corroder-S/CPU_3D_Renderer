@@ -9,7 +9,7 @@
 // CAMERA CONTROLLER (FPS / FREE-LOOK)
 // ============================================================================
 
-/// @brief Contrôleur de caméra de type "Free-Fly" 3D gérant les entrées Clavier et Souris via SDL3.
+/// @brief ContrÃ´leur de camÃ©ra de type "Free-Fly" 3D gÃ©rant les entrÃ©es Clavier et Souris via SDL3.
 class CameraController
 {
 private:
@@ -22,22 +22,22 @@ private:
     bool  m_initialized = false;
 
 public:
-    /// @brief Constructeur du contrôleur.
-    /// @param speed Vitesse de déplacement de base (unités/sec).
-    /// @param sensitivity Sensibilité du regard à la souris.
+    /// @brief Constructeur du contrÃ´leur.
+    /// @param speed Vitesse de dÃ©placement de base (unitÃ©s/sec).
+    /// @param sensitivity SensibilitÃ© du regard Ã  la souris.
     CameraController(float speed = 10.0f, float sensitivity = 0.15f)
         : m_moveSpeed(speed), m_sensitivity(sensitivity) {
     }
 
-    /// @brief Met à jour la position et l'orientation de la caméra en fonction des entrées utilisateur.
-    /// @param camera Référence vers l'objet caméra à manipuler.
-    /// @param dt Temps écoulé depuis la dernière image (delta time en secondes).
+    /// @brief Met Ã  jour la position et l'orientation de la camÃ©ra en fonction des entrÃ©es utilisateur.
+    /// @param camera RÃ©fÃ©rence vers l'objet camÃ©ra Ã  manipuler.
+    /// @param dt Temps Ã©coulÃ© depuis la derniÃ¨re image (delta time en secondes).
     void update(Camera& camera, float dt)
     {
         Maths::Vec3f forward = camera.target - camera.position;
         float lenSq = Maths::Dot(forward, forward);
 
-        // 1. Initialisation unique de l'orientation (Yaw/Pitch) à partir du vecteur cible initial
+        // 1. Initialisation unique de l'orientation (Yaw/Pitch) Ã  partir du vecteur cible initial
         if (!m_initialized && lenSq > 0.0001f)
         {
             forward = Maths::Normalize(forward);
@@ -50,13 +50,13 @@ public:
         float deltaY = 0.0f;
         Uint32 mouseState = SDL_GetRelativeMouseState(&deltaX, &deltaY);
 
-        // 2. Gestion de la rotation de la caméra au clic droit de la souris
+        // 2. Gestion de la rotation de la camÃ©ra au clic droit de la souris
         if (mouseState & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT))
         {
             m_yaw += deltaX * m_sensitivity;
             m_pitch -= deltaY * m_sensitivity;
 
-            // Saturation du Pitch pour éviter les retournements de caméra (gimbal lock)
+            // Saturation du Pitch pour Ã©viter les retournements de camÃ©ra (gimbal lock)
             if (m_pitch > 89.0f)  m_pitch = 89.0f;
             if (m_pitch < -89.0f) m_pitch = -89.0f;
 
@@ -79,7 +79,7 @@ public:
             forward = { 0.0f, 0.0f, -1.0f };
         }
 
-        // 3. Calcul des repères d'orientations orthogonaux (Right / Up)
+        // 3. Calcul des repÃ¨res d'orientations orthogonaux (Right / Up)
         const bool* keyState = SDL_GetKeyboardState(NULL);
 
         Maths::Vec3f right = Maths::Cross(forward, Maths::Vec3f{ 0.0f, 1.0f, 0.0f });
@@ -94,7 +94,7 @@ public:
 
         Maths::Vec3f up{ 0.0f, 1.0f, 0.0f };
 
-        // 4. Calcul du déplacement au clavier (Support QWERTY et AZERTY + Sprint)
+        // 4. Calcul du dÃ©placement au clavier (Support QWERTY et AZERTY + Sprint)
         float speed = m_moveSpeed * dt;
         if (keyState[SDL_SCANCODE_LSHIFT])
         {
@@ -110,14 +110,14 @@ public:
         if (keyState[SDL_SCANCODE_SPACE])                      move += up * speed;
         if (keyState[SDL_SCANCODE_LCTRL])                      move -= up * speed;
 
-        // 5. Application de la translation à la caméra
+        // 5. Application de la translation Ã  la camÃ©ra
         camera.position += move;
         camera.target += move;
     }
 
-    /// @brief Modifie la vitesse de déplacement linéaire.
+    /// @brief Modifie la vitesse de dÃ©placement linÃ©aire.
     void setMoveSpeed(float speed) { m_moveSpeed = speed; }
 
-    /// @brief Modifie la sensibilité de la vue souris.
+    /// @brief Modifie la sensibilitÃ© de la vue souris.
     void setSensitivity(float sensitivity) { m_sensitivity = sensitivity; }
 };
